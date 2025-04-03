@@ -1,0 +1,238 @@
+/* 🎨 Estilos Generales */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f8f9fa;
+    color: #333;
+}
+
+/* 📌 HEADER */
+.header {
+    background-color: #004b87;
+    color: white;
+    padding: 10px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+/* Logo y título */
+.logo-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    padding: 10px 0;
+}
+
+.logo {
+    height: 50px;
+}
+
+.title {
+    font-size: 1.8em;
+    font-weight: bold;
+}
+
+/* 📌 MENÚ DE NAVEGACIÓN */
+.navbar {
+    width: 100%;
+    background-color: #003366;
+}
+
+.menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.menu li {
+    position: relative;
+}
+
+.menu a {
+    text-decoration: none;
+    color: white;
+    font-size: 1em;
+    padding: 15px;
+    display: block;
+    transition: background 0.3s ease;
+}
+
+.menu a:hover {
+    background-color: #0056b3;
+}
+
+/* Submenús */
+.submenu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: #003366;
+    display: none;
+    min-width: 180px;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.submenu li {
+    width: 100%;
+}
+
+.submenu a {
+    padding: 10px 15px;
+    font-size: 0.9em;
+}
+
+/* Mostrar submenu al pasar el mouse */
+.menu li:hover .submenu {
+    display: block;
+}
+
+/* 📌 CONTENIDO PRINCIPAL */
+.content {
+    text-align: center;
+    padding: 50px 20px;
+}
+
+/* 📌 FOOTER */
+.footer {
+    background-color: #004b87;
+    color: white;
+    text-align: center;
+    padding: 15px 0;
+    margin-top: 20px;
+    font-size: 14px;
+    width: 100%;
+}
+
+/* 📌 RESPONSIVE */
+@media (max-width: 768px) {
+    .menu {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .submenu {
+        position: relative;
+        display: none;
+        width: 100%;
+    }
+
+    .menu li:hover .submenu {
+        display: block;
+    }
+}
+
+/*/////////////////////////////////*/
+.dashboard-container {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 20px;
+}
+
+.dashboard {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    width: 100%;
+}
+
+.summary-box {
+    background-color: #2C3E50;
+    color: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 230px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.summary-box.ingresos { background-color: #27AE60; }
+.summary-box.gastos { background-color: #C0392B; }
+.summary-box.deudas { background-color: #F39C12; }
+.summary-box.saldo { background-color: #2980B9; }
+
+.transactions-container {
+    width: 90%;
+    max-width: 1100px;
+    margin: auto;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.transactions-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.transactions-table th, .transactions-table td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}
+
+.transactions-table th {
+    background-color: #34495E;
+    color: white;
+}
+
+.transactions-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.transactions-table td.positivo {
+    color: #27AE60;
+    font-weight: bold;
+}
+
+.transactions-table td.negativo {
+    color: #C0392B;
+    font-weight: bold;
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 768px) {
+    .dashboard {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .summary-box {
+        width: 90%;
+    }
+
+    .transactions-container {
+        width: 90%;
+    }
+}
+/*------------------------------------------------*/
+
+/* Estilos para modales y tarjetas */
+.card {
+    border: none;
+    border-radius: 10px;
+}
+
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+    font-weight: bold;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}

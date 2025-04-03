@@ -1,0 +1,81 @@
+Tengo la siguiente estructura en mi proyecto, te adjunto los codigos que ya tengo desarollados
+Quiero que me ayudes a continuar con mi proyecto. 
+
+/taxis
+│── /assets
+|   |──logo.png (En funcion)
+│── /config
+|   |──database.php (desarollado y funcionando)
+│── /layout
+|   |──footer.php (desarollado y funcionando perfectamente)
+|   |──header.php (desarollado y funcionando perfectamente)
+│── /modules
+│   │── /vehiculos
+│   │   ├── add.php (Quiero que me ayudes a desarollarlo que lo adaptes a los estilos actuales, pero que se abra como un modal)
+│   │   ├── delete.php (quiero que lo actualices y adaptes a los estilos actuales)
+│   │   ├── edit.php (quiero que lo actualices a los estilos actuales)
+│   │   ├── list.php (quiero que lo actualices y adaptes a los estilos actuales)
+│   │   ├── view.php (quiero que me ayudes a desarollarlo y se adapte a los estilos actuales, y que sea profesional)
+│   │── /conductores
+│   │   ├── add.php (Quiero que me ayudes a desarollarlo que lo adaptes a los estilos actuales, pero que se abra como un modal)
+│   │   ├── delete.php (quiero que lo actualices y adaptes a los estilos actuales)
+│   │   ├── edit.php (quiero que lo actualices a los estilos actuales)
+│   │   ├── list.php (quiero que lo actualices y adaptes a los estilos actuales)
+│   │   ├── view.php (quiero que me ayudes a desarollarlo y se adapte a los estilos actuales, y que sea profesional)
+│── /styles
+│   ├── styles.css
+│── index.php (Funciona y esta desarollado)
+
+Estructura de la Base de datos
+
+Nombre de la base de datos: flota_taxis
+Tablas creadas y sus columnas.
+vehiculos
+    id | marca | modelo | matricula | numero
+conductores
+    id | nombre | telefono | dip | vehiculo_id
+
+Espera que te adjunte los codigos de styles.css, index.php, header.php, footer.php para luego de analizar su
+codigo me des una respuesta mas concreta y perfecta.
+
+
+
+
+
+
+
+1. Crear la base de datos
+Si aún no la tienes, créala con este comando:
+
+sql
+Copiar
+Editar
+CREATE DATABASE flota_taxis;
+USE flota_taxis;
+2. Crear la tabla vehiculos
+Esta tabla almacenará los vehículos disponibles en tu flota.
+
+sql
+Copiar
+Editar
+CREATE TABLE vehiculos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    marca VARCHAR(50) NOT NULL,
+    modelo VARCHAR(50) NOT NULL,
+    matricula VARCHAR(20) UNIQUE NOT NULL,
+    numero VARCHAR(20) UNIQUE NOT NULL
+);
+3. Crear la tabla conductores
+Aquí se guardarán los datos de los conductores y su vehículo asignado.
+
+sql
+Copiar
+Editar
+CREATE TABLE conductores (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    telefono VARCHAR(20) NOT NULL,
+    dip VARCHAR(20) UNIQUE NOT NULL,
+    vehiculo_id INT DEFAULT NULL,
+    FOREIGN KEY (vehiculo_id) REFERENCES vehiculos(id) ON DELETE SET NULL
+);
