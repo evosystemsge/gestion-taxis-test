@@ -1,31 +1,9 @@
-<?php
-// Incluimos el encabezado y la conexión a la base de datos
+<?php 
 include '../../layout/header.php';
 require '../../config/database.php';
 
-// ===== MEJORAS DE SEGURIDAD ===== //
-session_start();
-
-function generarTokenCSRF() {
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-    return $_SESSION['csrf_token'];
-}
-
-function validarEntrada($dato) {
-    return htmlspecialchars(strip_tags(trim($dato)));
-}
-
-if (isset($_POST['accion'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die("Token CSRF inválido");
-    }
-}
-// ===== FIN MEJORAS DE SEGURIDAD ===== //
-
-// Configuración de imágenes
-$uploadDir = '../../imagenes/vehiculos/';
+// Configuración de imágenes para conductores
+$uploadDir = '../../imagenes/conductores/';
 if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0777, true);
 }
@@ -37,168 +15,136 @@ if (isset($_POST['accion'])) {
     $accion = $_POST['accion'];
 
     if ($accion == 'agregar') {
-        // Insertar vehículo con datos validados
-        $stmt = $pdo->prepare("INSERT INTO vehiculos 
-            (marca, modelo, year, matricula, numero, km_inicial, km_actual, km_aceite, fecha) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            validarEntrada($_POST['marca']),
-            validarEntrada($_POST['modelo']),
-            validarEntrada($_POST['year']),
-            validarEntrada($_POST['matricula']),
-            validarEntrada($_POST['numero']),
-            validarEntrada($_POST['km_inicial']),
-            validarEntrada($_POST['km_actual']),
-            validarEntrada($_POST['km_aceite']),
-            date('Y-m-d')
-        ]);
-        
-        // Obtener el ID del vehículo recién insertado
-        $vehiculoId = $pdo->lastInsertId();
-        
-        // Procesar cada imagen
-        $updateFields = [];
-        $updateValues = [];
-        
-        for ($i = 1; $i <= 4; $i++) {
-            $fieldName = "imagen$i";
-            if (!empty($_FILES[$fieldName]['name'])) {
-                $fileName = uniqid() . '_' . basename($_FILES[$fieldName]['name']);
-                $targetPath = $uploadDir . $fileName;
-                
-                if (move_uploaded_file($_FILES[$fieldName]['tmp_name'], $targetPath)) {
-                    $updateFields[] = "imagen$i = ?";
-                    $updateValues[] = $fileName;
-                }
+        // Procesar imagen del conductor
+        $imagen = null;
+        if (!empty($_FILES['imagen']['name'])) {
+            $fileName = uniqid() . '_' . basename($_FILES['imagen']['name']);
+            $targetPath = $uploadDir . $fileName;
+            
+            if (move_uploaded_file($_FILES['imagen']['tmp_name'], $targetPath)) {
+                $imagen = $fileName;
             }
         }
         
-        // Actualizar el vehículo con las rutas de las imágenes
-        if (!empty($updateFields)) {
-            $sql = "UPDATE vehiculos SET " . implode(', ', $updateFields) . " WHERE id = ?";
-            $updateValues[] = $vehiculoId;
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($updateValues);
-        }
+        // Insertar conductor
+        $stmt = $pdo->prepare("INSERT INTO conductores 
+            (fecha, nombre, telefono, dip, vehiculo_id, dias_por_ciclo, ingreso_obligatorio, ingreso_libre, imagen) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $_POST['fecha'], $_POST['nombre'], $_POST['telefono'], $_POST['dip'], 
+            $_POST['vehiculo_id'] ?: null, $_POST['dias_por_ciclo'],
+            $_POST['ingreso_obligatorio'], $_POST['ingreso_libre'], $imagen
+        ]);
         
-        header("Location: vehiculos.php");
+        header("Location: conductores.php");
         exit;
 
     } elseif ($accion == 'eliminar') {
         $id = $_POST['id'];
         
-        // Primero eliminar las imágenes asociadas
-        $stmt = $pdo->prepare("SELECT imagen1, imagen2, imagen3, imagen4 FROM vehiculos WHERE id = ?");
+        // Verificar si tiene vehículo asignado
+        $stmt = $pdo->prepare("SELECT vehiculo_id, imagen FROM conductores WHERE id = ?");
         $stmt->execute([$id]);
-        $vehiculo = $stmt->fetch();
+        $conductor = $stmt->fetch();
         
-        for ($i = 1; $i <= 4; $i++) {
-            $imgField = "imagen$i";
-            if (!empty($vehiculo[$imgField])) {
-                $filePath = $uploadDir . $vehiculo[$imgField];
+        if ($conductor && $conductor['vehiculo_id']) {
+            echo "<script>alert('No se puede eliminar este conductor. Primero desvincúlelo de un vehículo.'); window.location.href='conductores.php';</script>";
+        } else {
+            // Eliminar imagen si existe
+            if (!empty($conductor['imagen'])) {
+                $filePath = $uploadDir . $conductor['imagen'];
                 if (file_exists($filePath)) {
                     unlink($filePath);
                 }
             }
-        }
-        
-        // Verificar si está asignado a un conductor
-        $stmt = $pdo->prepare("SELECT * FROM conductores WHERE vehiculo_id = ?");
-        $stmt->execute([$id]);
-        if ($stmt->rowCount() > 0) {
-            echo "<script>alert('Este vehículo está asignado a un conductor y no se puede eliminar hasta desvincularlo.'); window.location.href='vehiculos.php';</script>";
-        } else {
-            $stmt = $pdo->prepare("DELETE FROM vehiculos WHERE id = ?");
+            
+            $stmt = $pdo->prepare("DELETE FROM conductores WHERE id = ?");
             $stmt->execute([$id]);
-            echo "<script>alert('Vehículo eliminado correctamente.'); window.location.href='vehiculos.php';</script>";
+            echo "<script>alert('Conductor eliminado correctamente.'); window.location.href='conductores.php';</script>";
         }
 
     } elseif ($accion == 'editar') {
-        $vehiculoId = $_POST['id'];
+        $id = $_POST['id'];
+        $imagen = null;
         
-        // Procesar cada imagen
-        $updateFields = [];
-        $updateValues = [];
-        
-        for ($i = 1; $i <= 4; $i++) {
-            $fieldName = "editar_imagen$i";
-            $currentImageField = "imagen_actual$i";
+        // Procesar imagen
+        if (!empty($_FILES['editar_imagen']['name'])) {
+            // Eliminar imagen anterior si existe
+            $stmt = $pdo->prepare("SELECT imagen FROM conductores WHERE id = ?");
+            $stmt->execute([$id]);
+            $conductor = $stmt->fetch();
             
-            if (!empty($_FILES[$fieldName]['name'])) {
-                // Eliminar imagen anterior si existe
-                if (!empty($_POST[$currentImageField])) {
-                    $oldImagePath = $uploadDir . $_POST[$currentImageField];
-                    if (file_exists($oldImagePath)) {
-                        unlink($oldImagePath);
-                    }
+            if ($conductor['imagen']) {
+                $oldImagePath = $uploadDir . $conductor['imagen'];
+                if (file_exists($oldImagePath)) {
+                    unlink($oldImagePath);
                 }
-                
-                // Subir nueva imagen
-                $fileName = uniqid() . '_' . basename($_FILES[$fieldName]['name']);
-                $targetPath = $uploadDir . $fileName;
-                
-                if (move_uploaded_file($_FILES[$fieldName]['tmp_name'], $targetPath)) {
-                    $updateFields[] = "imagen$i = ?";
-                    $updateValues[] = $fileName;
-                }
-            } elseif (!empty($_POST[$currentImageField])) {
-                // Mantener la imagen actual
-                $updateFields[] = "imagen$i = ?";
-                $updateValues[] = $_POST[$currentImageField];
-            } else {
-                // No hay imagen
-                $updateFields[] = "imagen$i = NULL";
             }
+            
+            // Subir nueva imagen
+            $fileName = uniqid() . '_' . basename($_FILES['editar_imagen']['name']);
+            $targetPath = $uploadDir . $fileName;
+            
+            if (move_uploaded_file($_FILES['editar_imagen']['tmp_name'], $targetPath)) {
+                $imagen = $fileName;
+            }
+        } elseif (!empty($_POST['imagen_actual'])) {
+            $imagen = $_POST['imagen_actual'];
         }
         
-        // Actualizar campos básicos
-        $stmt = $pdo->prepare("UPDATE vehiculos SET marca=?, modelo=?, year=?, matricula=?, numero=?, km_inicial=?, km_actual=?, km_aceite=?" . 
-                             (!empty($updateFields) ? ", " . implode(', ', $updateFields) : "") . 
-                             " WHERE id=?");
-        
+        // Actualizar conductor
+        $sql = "UPDATE conductores SET 
+                fecha = ?, nombre = ?, telefono = ?, dip = ?, 
+                vehiculo_id = ?, dias_por_ciclo = ?, ingreso_obligatorio = ?, ingreso_libre = ?" . 
+                ($imagen !== null ? ", imagen = ?" : "") . 
+                " WHERE id = ?";
+                
         $params = [
-            validarEntrada($_POST['marca']),
-            validarEntrada($_POST['modelo']),
-            validarEntrada($_POST['year']),
-            validarEntrada($_POST['matricula']),
-            validarEntrada($_POST['numero']),
-            validarEntrada($_POST['km_inicial']),
-            validarEntrada($_POST['km_actual']),
-            validarEntrada($_POST['km_aceite'])
+            $_POST['fecha'], $_POST['nombre'], $_POST['telefono'], $_POST['dip'],
+            $_POST['vehiculo_id'] ?: null, $_POST['dias_por_ciclo'],
+            $_POST['ingreso_obligatorio'], $_POST['ingreso_libre']
         ];
         
-        if (!empty($updateValues)) {
-            $params = array_merge($params, $updateValues);
+        if ($imagen !== null) {
+            $params[] = $imagen;
         }
         
-        $params[] = $vehiculoId;
+        $params[] = $id;
         
+        $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        header("Location: vehiculos.php");
+        
+        header("Location: conductores.php");
         exit;
     }
 }
 
-// Obtener todos los vehículos con conductor asignado
-$vehiculos = $pdo->query("
-    SELECT v.*, c.nombre AS conductor_nombre 
-    FROM vehiculos v 
-    LEFT JOIN conductores c ON v.id = c.vehiculo_id
-    ORDER BY v.fecha DESC
+// Obtener todos los conductores con información de vehículo asignado
+$conductores = $pdo->query("
+    SELECT c.*, v.marca AS vehiculo_marca, v.modelo AS vehiculo_modelo, 
+           v.matricula AS vehiculo_matricula, v.numero AS vehiculo_numero
+    FROM conductores c
+    LEFT JOIN vehiculos v ON c.vehiculo_id = v.id
 ")->fetchAll();
 
-// Obtener marcas y modelos para filtros
-$marcas = $pdo->query("SELECT DISTINCT marca FROM vehiculos ORDER BY marca")->fetchAll();
-$modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")->fetchAll();
+// Obtener vehículos no asignados para los selects
+$vehiculosDisponibles = $pdo->query("
+    SELECT * FROM vehiculos 
+    WHERE id NOT IN (SELECT vehiculo_id FROM conductores WHERE vehiculo_id IS NOT NULL)
+")->fetchAll();
+
+// Obtener todos los vehículos para filtros
+$todosVehiculos = $pdo->query("SELECT id, marca, modelo, matricula FROM vehiculos")->fetchAll();
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Vehículos</title>
+    <title>Gestión de Conductores</title>
     <style>
-    /* ============ ESTILOS PRINCIPALES (COPIADOS DE CONDUCTORES.PHP) ============ */
+    /* ============ ESTILOS PRINCIPALES ============ */
     :root {
         --color-primario: #004b87;
         --color-secundario: #003366;
@@ -274,19 +220,6 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     
     .table tr:hover td {
         background-color: rgba(0, 75, 135, 0.05);
-    }
-    
-    /* Estilo para vehículos que necesitan mantenimiento */
-    .alerta-mantenimiento {
-        background-color: #ffebee !important; /* Fondo rojo claro */
-        font-weight: bold;
-        color:rgb(235, 13, 46)
-    }
-    
-    .alerta-proximo {
-        background-color: #fff3e0 !important; /* Fondo naranja claro */
-        font-weight: bold;
-        color: #e65100;
     }
     
     /* ============ BOTONES ============ */
@@ -370,10 +303,6 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         flex: 1;
         min-width: 200px;
         max-width: 300px;
-        padding: 10px 12px;
-        border: 1px solid var(--color-borde);
-        border-radius: 6px;
-        font-size: 0.95rem;
     }
     
     .pagination {
@@ -644,73 +573,46 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         background-color: white;
     }
     
-    /* ============ CARRUSEL DE IMÁGENES ============ */
-    .vehicle-carousel {
-        position: relative;
+    /* ============ FOTO DEL CONDUCTOR ============ */
+    .conductor-photo-container {
         width: 100%;
         height: 200px;
-        overflow: hidden;
-        margin-bottom: 20px;
-        border-radius: 8px;
-        background: #f1f5f9;
-    }
-    
-    .vehicle-carousel__images {
-        display: flex;
-        height: 100%;
-        transition: transform 0.3s ease;
-    }
-    
-    .vehicle-carousel__image {
-        min-width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    
-    .vehicle-carousel__nav {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 100%;
-        display: flex;
-        justify-content: space-between;
-        padding: 0 10px;
-        z-index: 2;
-    }
-    
-    .vehicle-carousel__btn {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.8);
-        border: none;
-        cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        background: #f1f5f9;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        overflow: hidden;
     }
     
-    .vehicle-carousel__btn svg {
-        width: 20px;
-        height: 20px;
-        color: #1e293b;
+    .conductor-photo {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
     }
     
-    .vehicle-carousel__btn:hover {
-        background: white;
+    /* ============ HISTORIAL ============ */
+    .historial-container {
+        width: 100%;
+        margin-top: 20px;
+        border-top: 1px solid var(--color-borde);
+        padding-top: 20px;
     }
     
-    .vehicle-carousel__counter {
-        position: absolute;
-        bottom: 10px;
-        right: 10px;
-        background: rgba(0, 0, 0, 0.5);
-        color: white;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 12px;
-        z-index: 2;
+    .historial-title {
+        color: var(--color-primario);
+        margin-bottom: 15px;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+    
+    .historial-content {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        max-height: 300px;
+        overflow-y: auto;
     }
     
     /* ============ BOTONES FLOTANTES ============ */
@@ -772,116 +674,91 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             width: 100%;
             justify-content: center;
         }
-        
-        .vehicle-carousel {
-            height: 150px;
-        }
     }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>Lista de Vehículos</h2>
+        <h2>Lista de Conductores</h2>
         
         <!-- Controles de tabla -->
         <div class="table-controls">
-            <input type="text" id="searchInput" placeholder="Buscar vehículo..." class="modal-vehicle__form-input">
-            
-            <select id="filterMarca" class="modal-vehicle__form-input">
-                <option value="">Todas las marcas</option>
-                <?php foreach ($marcas as $marca): ?>
-                    <option value="<?= htmlspecialchars($marca['marca']) ?>"><?= htmlspecialchars($marca['marca']) ?></option>
+            <input type="text" id="searchInput" placeholder="Buscar conductor..." class="modal-vehicle__form-input">
+            <select id="filterVehicle" class="modal-vehicle__form-input">
+                <option value="">Todos los vehículos</option>
+                <?php foreach ($todosVehiculos as $vehiculo): ?>
+                    <option value="<?= $vehiculo['id'] ?>">
+                        <?= htmlspecialchars($vehiculo['marca']) ?> <?= htmlspecialchars($vehiculo['modelo']) ?> - <?= htmlspecialchars($vehiculo['matricula']) ?>
+                    </option>
                 <?php endforeach; ?>
             </select>
-            
-            <select id="filterModelo" class="modal-vehicle__form-input">
-                <option value="">Todos los modelos</option>
-                <?php foreach ($modelos as $modelo): ?>
-                    <option value="<?= htmlspecialchars($modelo['modelo']) ?>"><?= htmlspecialchars($modelo['modelo']) ?></option>
-                <?php endforeach; ?>
-            </select>
-            
-            <select id="filterMantenimiento" class="modal-vehicle__form-input">
-                <option value="">Todos los estados</option>
-                <option value="proximo">Próximo a mantenimiento</option>
-                <option value="urgente">Mantenimiento urgente</option>
-                <option value="ok">Mantenimiento al día</option>
-            </select>
-            
             <button id="openModalAgregar" class="btn btn-nuevo">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
-                Nuevo Vehículo
+                Nuevo Conductor
             </button>
         </div>
         
-        <!-- Tabla de vehículos -->
+        <!-- Tabla de conductores -->
         <div class="table-container">
             <table class="table">
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>Marca</th>
-                        <th>Modelo</th>
-                        <th>Matrícula</th>
-                        <th>Número</th>
-                        <th>Km Actual</th>
-                        <th>Próx. Mantenimiento</th>
-                        <th>Conductor</th>
+                        <th>Fecha</th>
+                        <th>Nombre</th>
+                        <th>Teléfono</th>
+                        <th>DIP</th>
+                        <!--<th>Ingreso Oblig.</th>
+                        <th>Ingreso Libre</th>-->
+                        <th>Vehículo Asignado</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
-                    <?php foreach ($vehiculos as $vehiculo): ?>
-                        <?php
-                            $diferencia_km = $vehiculo['km_aceite'] - $vehiculo['km_actual'];
-                            $clase_alerta = '';
-                            $estado_mantenimiento = 'ok';
-                            
-                            if ($diferencia_km <= 0) {
-                                $clase_alerta = 'alerta-mantenimiento';
-                                $estado_mantenimiento = 'urgente';
-                            } elseif ($diferencia_km <= 500) {
-                                $clase_alerta = 'alerta-proximo';
-                                $estado_mantenimiento = 'proximo';
-                            }
-                        ?>
-                        <tr class="<?= $clase_alerta ?>" 
-                            data-marca="<?= htmlspecialchars($vehiculo['marca']) ?>"
-                            data-modelo="<?= htmlspecialchars($vehiculo['modelo']) ?>"
-                            data-mantenimiento="<?= $estado_mantenimiento ?>">
-                            <td><?= $vehiculo['id'] ?></td>
-                            <td><?= htmlspecialchars($vehiculo['marca']) ?></td>
-                            <td><?= htmlspecialchars($vehiculo['modelo']) ?></td>
-                            <td><?= htmlspecialchars($vehiculo['matricula']) ?></td>
-                            <td><?= htmlspecialchars($vehiculo['numero']) ?></td>
-                            <td><?= number_format($vehiculo['km_actual'], 0, ',', '.') ?> km</td>
-                            <td><?= number_format($vehiculo['km_aceite'], 0, ',', '.') ?> km</td>
-                            <td><?= $vehiculo['conductor_nombre'] ?? 'No asignado' ?></td>
+                    <?php foreach ($conductores as $conductor): ?>
+                        <tr data-vehiculo="<?= $conductor['vehiculo_id'] ?: '' ?>">
+                            <td><?= $conductor['id'] ?></td>
+                            <td><?= htmlspecialchars($conductor['fecha']) ?></td>
+                            <td><?= htmlspecialchars($conductor['nombre']) ?></td>
+                            <td><?= htmlspecialchars($conductor['telefono']) ?></td>
+                            <td><?= htmlspecialchars($conductor['dip']) ?></td>
+                            <!--<td><?= number_format($conductor['ingreso_obligatorio'], 0, ',', '.') ?> FCFA</td>
+                            <td><?= number_format($conductor['ingreso_libre'], 0, ',', '.') ?> FCFA</td>-->
+                            <td>
+                                <?php if ($conductor['vehiculo_id']): ?>
+                                    <!--<?= htmlspecialchars($conductor['vehiculo_marca']) ?> <?= htmlspecialchars($conductor['vehiculo_modelo']) ?> - -->
+                                    <?= htmlspecialchars($conductor['vehiculo_matricula']) ?> (<?= htmlspecialchars($conductor['vehiculo_numero']) ?>)
+                                <?php else: ?>
+                                    No asignado
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                                    <button class="btn btn-ver" onclick="verVehiculo(<?= htmlspecialchars(json_encode($vehiculo), ENT_QUOTES, 'UTF-8') ?>)">
+                                    <button class="btn btn-ver" onclick="verConductor(<?= htmlspecialchars(json_encode($conductor), ENT_QUOTES, 'UTF-8') ?>)">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                                             <circle cx="12" cy="12" r="3"></circle>
                                         </svg>
+                                        <!--Ver-->
                                     </button>
-                                    <button class="btn btn-editar" onclick="editarVehiculo(<?= htmlspecialchars(json_encode($vehiculo), ENT_QUOTES, 'UTF-8') ?>)">
+                                    <button class="btn btn-editar" onclick="editarConductor(<?= htmlspecialchars(json_encode($conductor), ENT_QUOTES, 'UTF-8') ?>)">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                                         </svg>
+                                        <!--Editar-->
                                     </button>
                                     <form method="post" style="display:inline;" onsubmit="return confirmarEliminacion();">
-                                        <input type="hidden" name="id" value="<?= $vehiculo['id'] ?>">
+                                        <input type="hidden" name="id" value="<?= $conductor['id'] ?>">
                                         <input type="hidden" name="accion" value="eliminar">
-                                        <input type="hidden" name="csrf_token" value="<?= generarTokenCSRF() ?>">
                                         <button type="submit" class="btn btn-eliminar">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                                 <polyline points="3 6 5 6 21 6"></polyline>
                                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                            <!--Eliminar-->
                                             </svg>
                                         </button>
                                     </form>
@@ -908,7 +785,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                 <path d="M18 15l-6-6-6 6"></path>
             </svg>
         </button>
-        <button class="action-button" id="btnAddNew" title="Nuevo vehículo">
+        <button class="action-button" id="btnAddNew" title="Nuevo conductor">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
                 <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -918,7 +795,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     
     <!-- ============ MODALES ============ -->
     
-    <!-- Modal Agregar Vehículo -->
+    <!-- Modal Agregar Conductor -->
     <div id="modalAgregar" class="modal-vehicle">
         <div class="modal-vehicle__overlay" onclick="cerrarModal('modalAgregar')"></div>
         <div class="modal-vehicle__container">
@@ -930,74 +807,67 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             </button>
             
             <div class="modal-vehicle__header">
-                <h3 class="modal-vehicle__title">Agregar Nuevo Vehículo</h3>
+                <h3 class="modal-vehicle__title">Agregar Nuevo Conductor</h3>
             </div>
             
             <div class="modal-vehicle__body">
                 <form method="post" enctype="multipart/form-data" class="modal-vehicle__form" id="modalAgregarForm">
-                    <input type="hidden" name="csrf_token" value="<?= generarTokenCSRF() ?>">
-                    <input type="hidden" name="accion" value="agregar">
+                    <div class="modal-vehicle__form-group">
+                        <label for="fecha" class="modal-vehicle__form-label">Fecha</label>
+                        <input type="date" name="fecha" id="fecha" class="modal-vehicle__form-input" placeholder="Fecha de registro" required>
+                    </div>
+                    <div class="modal-vehicle__form-group">
+                        <label for="nombre" class="modal-vehicle__form-label">Nombre</label>
+                        <input type="text" name="nombre" id="nombre" class="modal-vehicle__form-input" placeholder="Nombre completo" required>
+                    </div>
                     
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
-                            <label for="marca" class="modal-vehicle__form-label">Marca</label>
-                            <input type="text" name="marca" id="marca" class="modal-vehicle__form-input" placeholder="Marca" required>
+                            <label for="telefono" class="modal-vehicle__form-label">Teléfono</label>
+                            <input type="text" name="telefono" id="telefono" class="modal-vehicle__form-input" placeholder="Ej: 2222333444" required>
                         </div>
                         
                         <div class="modal-vehicle__form-group">
-                            <label for="modelo" class="modal-vehicle__form-label">Modelo</label>
-                            <input type="text" name="modelo" id="modelo" class="modal-vehicle__form-input" placeholder="Modelo" required>
+                            <label for="dip" class="modal-vehicle__form-label">DIP</label>
+                            <input type="text" name="dip" id="dip" class="modal-vehicle__form-input" placeholder="Número DIP" required>
                         </div>
                     </div>
                     
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
-                            <label for="year" class="modal-vehicle__form-label">Año</label>
-                            <input type="number" name="year" id="year" class="modal-vehicle__form-input" placeholder="Año" min="1900" max="<?= date('Y') + 1 ?>" required>
+                            <label for="ingreso_obligatorio" class="modal-vehicle__form-label">Ingreso Obligatorio</label>
+                            <input type="number" name="ingreso_obligatorio" id="ingreso_obligatorio" class="modal-vehicle__form-input" placeholder="Ej: 14000" required>
                         </div>
                         
                         <div class="modal-vehicle__form-group">
-                            <label for="matricula" class="modal-vehicle__form-label">Matrícula</label>
-                            <input type="text" name="matricula" id="matricula" class="modal-vehicle__form-input" placeholder="Matrícula" required>
+                            <label for="ingreso_libre" class="modal-vehicle__form-label">Ingreso Libre</label>
+                            <input type="number" name="ingreso_libre" id="ingreso_libre" class="modal-vehicle__form-input" placeholder="Ej: 10000" required>
                         </div>
                     </div>
                     
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
-                            <label for="numero" class="modal-vehicle__form-label">Número</label>
-                            <input type="text" name="numero" id="numero" class="modal-vehicle__form-input" placeholder="Número" required>
+                            <label for="dias_por_ciclo" class="modal-vehicle__form-label">Dias de trabajo</label>
+                            <input type="number" name="dias_por_ciclo" id="dias_por_ciclo" class="modal-vehicle__form-input" placeholder="Ej: 30" required>
                         </div>
-                        
                         <div class="modal-vehicle__form-group">
-                            <label for="km_inicial" class="modal-vehicle__form-label">Km Inicial</label>
-                            <input type="number" name="km_inicial" id="km_inicial" class="modal-vehicle__form-input" placeholder="Km Inicial" min="0" required>
-                        </div>
-                    </div>
-                    
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="km_actual" class="modal-vehicle__form-label">Km Actual</label>
-                            <input type="number" name="km_actual" id="km_actual" class="modal-vehicle__form-input" placeholder="Km Actual" min="0" required>
-                        </div>
-                        
-                        <div class="modal-vehicle__form-group">
-                            <label for="km_aceite" class="modal-vehicle__form-label">Próximo Mantenimiento (km)</label>
-                            <input type="number" name="km_aceite" id="km_aceite" class="modal-vehicle__form-input" placeholder="Km para mantenimiento" min="0" required>
+                        <label for="vehiculo_id" class="modal-vehicle__form-label">Vehículo Asignado</label>
+                        <select name="vehiculo_id" id="vehiculo_id" class="modal-vehicle__form-input">
+                            <option value="">Seleccione un vehículo</option>
+                            <?php foreach ($vehiculosDisponibles as $vehiculo): ?>
+                                <option value="<?= $vehiculo['id'] ?>">
+                                    <?= htmlspecialchars($vehiculo['marca']) ?> <?= htmlspecialchars($vehiculo['modelo']) ?> - <?= htmlspecialchars($vehiculo['matricula']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                         </div>
                     </div>
                     
                     <div class="modal-vehicle__form-group">
-                        <label class="modal-vehicle__form-label">Imágenes del Vehículo</label>
-                        <div class="modal-vehicle__image-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                            <?php for ($i = 1; $i <= 4; $i++): ?>
-                                <div class="modal-vehicle__image-container">
-                                    <label for="imagen<?= $i ?>" class="modal-vehicle__form-label">Imagen <?= $i ?></label>
-                                    <input type="file" name="imagen<?= $i ?>" id="imagen<?= $i ?>" class="modal-vehicle__file-input" accept="image/*">
-                                    <div class="modal-vehicle__image-preview" id="preview<?= $i ?>" style="display: none;">
-                                        <img id="previewImg<?= $i ?>" src="#" alt="Vista previa" class="modal-vehicle__preview-image">
-                                    </div>
-                                </div>
-                            <?php endfor; ?>
+                        <label for="imagen" class="modal-vehicle__form-label">Foto del Conductor</label>
+                        <input type="file" name="imagen" id="imagen" class="modal-vehicle__file-input" accept="image/*">
+                        <div class="modal-vehicle__image-preview" id="preview" style="display: none;">
+                            <img id="previewImg" src="#" alt="Vista previa" class="modal-vehicle__preview-image">
                         </div>
                     </div>
                 </form>
@@ -1011,19 +881,19 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                     </svg>
                     Cancelar
                 </button>
-                <button type="submit" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalAgregarForm">
+                <button type="submit" name="accion" value="agregar" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalAgregarForm">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
                         <polyline points="7 3 7 8 15 8"></polyline>
                     </svg>
-                    Guardar Vehículo
+                    Guardar Conductor
                 </button>
             </div>
         </div>
     </div>
     
-    <!-- Modal Ver Vehículo -->
+    <!-- Modal Ver Conductor -->
     <div id="modalVer" class="modal-vehicle">
         <div class="modal-vehicle__overlay" onclick="cerrarModal('modalVer')"></div>
         <div class="modal-vehicle__container">
@@ -1035,26 +905,60 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             </button>
             
             <div class="modal-vehicle__header">
-                <div class="vehicle-carousel">
-                    <!-- Contenido del carrusel de imágenes se insertará aquí -->
+                <div class="conductor-photo-container" id="conductorFotoContainer">
+                    <!-- Imagen del conductor se insertará aquí -->
                 </div>
                 
                 <div class="modal-vehicle__header-content">
-                    <h3 class="modal-vehicle__title">CONDUCTOR ASIGNADO: <span id="nombreConductor" class="modal-vehicle__title--highlight">No asignado</span></h3>
+                    <h3 class="modal-vehicle__title">VEHÍCULO ASIGNADO: <span id="vehiculoAsignado" class="modal-vehicle__title--highlight">No asignado</span></h3>
                     <div class="modal-vehicle__badge">
-                        <span id="vehicleStatusBadge">Activo</span>
+                        <span id="conductorStatusBadge">Activo</span>
                     </div>
                 </div>
             </div>
             
             <div class="modal-vehicle__body">
-                <div id="detalleVehiculo" style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <div id="detalleConductor" style="display: flex; gap: 20px; flex-wrap: wrap;">
                     <!-- Contenido dinámico aquí -->
+                </div>
+                
+                <!-- Sección de historial -->
+                <div id="historialContent" class="historial-container" style="display: none;">
+                    <h4 class="historial-title" id="historialTitle"></h4>
+                    <div id="historialData" class="historial-content">
+                        <!-- Contenido dinámico del historial -->
+                    </div>
                 </div>
             </div>
             
             <div class="modal-vehicle__footer">
-                <button class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" onclick="editarVehiculo()">
+                <button class="modal-vehicle__action-btn" onclick="mostrarHistorial('ingresos')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    Historial de Ingresos
+                </button>
+                <button class="modal-vehicle__action-btn" onclick="mostrarHistorial('salarios')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v4"></path>
+                        <path d="M12 18v4"></path>
+                        <path d="M19 8l-7 7-7-7"></path>
+                    </svg>
+                    Historial de Salarios
+                </button>
+                <button class="modal-vehicle__action-btn" onclick="mostrarHistorial('deudas')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v4"></path>
+                        <path d="M12 18v4"></path>
+                        <path d="M5 12h14"></path>
+                    </svg>
+                    Historial de Deudas
+                </button>
+                <button class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" onclick="editarConductor()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -1065,7 +969,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         </div>
     </div>
     
-    <!-- Modal Editar Vehículo -->
+    <!-- Modal Editar Conductor -->
     <div id="modalEditar" class="modal-vehicle">
         <div class="modal-vehicle__overlay" onclick="cerrarModal('modalEditar')"></div>
         <div class="modal-vehicle__container">
@@ -1077,77 +981,69 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             </button>
             
             <div class="modal-vehicle__header">
-                <h3 class="modal-vehicle__title">Editar Vehículo</h3>
+                <h3 class="modal-vehicle__title">Editar Conductor</h3>
             </div>
             
             <div class="modal-vehicle__body">
                 <form method="post" enctype="multipart/form-data" class="modal-vehicle__form" id="modalEditarForm">
                     <input type="hidden" id="editar_id" name="id">
-                    <input type="hidden" name="csrf_token" value="<?= generarTokenCSRF() ?>">
-                    <input type="hidden" name="accion" value="editar">
+                    <input type="hidden" id="imagen_actual" name="imagen_actual">
+                    <div class="modal-vehicle__form-group">
+                        <label for="editar_fecha" class="modal-vehicle__form-label">Fecha</label>
+                        <input type="date" id="editar_fecha" name="fecha" class="modal-vehicle__form-input" required>
+                    </div>
+                    <div class="modal-vehicle__form-group">
+                        <label for="editar_nombre" class="modal-vehicle__form-label">Nombre</label>
+                        <input type="text" id="editar_nombre" name="nombre" class="modal-vehicle__form-input" required>
+                    </div>
                     
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
-                            <label for="editar_marca" class="modal-vehicle__form-label">Marca</label>
-                            <input type="text" id="editar_marca" name="marca" class="modal-vehicle__form-input" required>
+                            <label for="editar_telefono" class="modal-vehicle__form-label">Teléfono</label>
+                            <input type="text" id="editar_telefono" name="telefono" class="modal-vehicle__form-input" required>
                         </div>
                         
                         <div class="modal-vehicle__form-group">
-                            <label for="editar_modelo" class="modal-vehicle__form-label">Modelo</label>
-                            <input type="text" id="editar_modelo" name="modelo" class="modal-vehicle__form-input" required>
+                            <label for="editar_dip" class="modal-vehicle__form-label">DIP</label>
+                            <input type="text" id="editar_dip" name="dip" class="modal-vehicle__form-input" required>
                         </div>
                     </div>
                     
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
-                            <label for="editar_year" class="modal-vehicle__form-label">Año</label>
-                            <input type="number" id="editar_year" name="year" class="modal-vehicle__form-input" min="1900" max="<?= date('Y') + 1 ?>" required>
+                            <label for="editar_ingreso_obligatorio" class="modal-vehicle__form-label">Ingreso Obligatorio</label>
+                            <input type="number" id="editar_ingreso_obligatorio" name="ingreso_obligatorio" class="modal-vehicle__form-input" required>
                         </div>
                         
                         <div class="modal-vehicle__form-group">
-                            <label for="editar_matricula" class="modal-vehicle__form-label">Matrícula</label>
-                            <input type="text" id="editar_matricula" name="matricula" class="modal-vehicle__form-input" required>
+                            <label for="editar_ingreso_libre" class="modal-vehicle__form-label">Ingreso Libre</label>
+                            <input type="number" id="editar_ingreso_libre" name="ingreso_libre" class="modal-vehicle__form-input" required>
                         </div>
                     </div>
-                    
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
-                            <label for="editar_numero" class="modal-vehicle__form-label">Número</label>
-                            <input type="text" id="editar_numero" name="numero" class="modal-vehicle__form-input" required>
+                            <label for="editar_dias_por_ciclo" class="modal-vehicle__form-label">Dias de trabajo</label>
+                            <input type="number" id="editar_dias_por_ciclo" name="dias_por_ciclo" class="modal-vehicle__form-input" required>
                         </div>
-                        
                         <div class="modal-vehicle__form-group">
-                            <label for="editar_km_inicial" class="modal-vehicle__form-label">Km Inicial</label>
-                            <input type="number" id="editar_km_inicial" name="km_inicial" class="modal-vehicle__form-input" min="0" required>
-                        </div>
-                    </div>
-                    
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_km_actual" class="modal-vehicle__form-label">Km Actual</label>
-                            <input type="number" id="editar_km_actual" name="km_actual" class="modal-vehicle__form-input" min="0" required>
-                        </div>
-                        
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_km_aceite" class="modal-vehicle__form-label">Próximo Mantenimiento (km)</label>
-                            <input type="number" id="editar_km_aceite" name="km_aceite" class="modal-vehicle__form-input" min="0" required>
+                        <label for="editar_vehiculo_id" class="modal-vehicle__form-label">Vehículo Asignado</label>
+                        <select name="vehiculo_id" id="editar_vehiculo_id" class="modal-vehicle__form-input">
+                            <option value="">Seleccione un vehículo</option>
+                            <?php foreach ($vehiculosDisponibles as $vehiculo): ?>
+                                <option value="<?= $vehiculo['id'] ?>">
+                                    <?= htmlspecialchars($vehiculo['marca']) ?> <?= htmlspecialchars($vehiculo['modelo']) ?> - <?= htmlspecialchars($vehiculo['matricula']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                         </div>
                     </div>
                     
                     <div class="modal-vehicle__form-group">
-                        <label class="modal-vehicle__form-label">Imágenes del Vehículo</label>
-                        <div class="modal-vehicle__image-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                            <?php for ($i = 1; $i <= 4; $i++): ?>
-                                <div class="modal-vehicle__image-container">
-                                    <label for="editar_imagen<?= $i ?>" class="modal-vehicle__form-label">Imagen <?= $i ?></label>
-                                    <input type="file" name="editar_imagen<?= $i ?>" id="editar_imagen<?= $i ?>" class="modal-vehicle__file-input" accept="image/*">
-                                    <input type="hidden" name="imagen_actual<?= $i ?>" id="imagen_actual<?= $i ?>">
-                                    <div class="modal-vehicle__image-preview" id="editar_preview<?= $i ?>">
-                                        <img id="editar_previewImg<?= $i ?>" src="#" alt="Vista previa" class="modal-vehicle__preview-image" style="display: none;">
-                                        <div id="current_image<?= $i ?>"></div>
-                                    </div>
-                                </div>
-                            <?php endfor; ?>
+                        <label for="editar_imagen" class="modal-vehicle__form-label">Foto del Conductor</label>
+                        <input type="file" name="editar_imagen" id="editar_imagen" class="modal-vehicle__file-input" accept="image/*">
+                        <div class="modal-vehicle__image-preview" id="editar_preview">
+                            <img id="editar_previewImg" src="#" alt="Vista previa" class="modal-vehicle__preview-image" style="display: none;">
+                            <div id="current_image"></div>
                         </div>
                     </div>
                 </form>
@@ -1161,12 +1057,12 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                     </svg>
                     Cancelar
                 </button>
-                <button type="submit" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalEditarForm">
+                <button type="submit" name="accion" value="editar" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalEditarForm">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                     </svg>
-                    Actualizar Vehículo
+                    Actualizar Conductor
                 </button>
             </div>
         </div>
@@ -1174,13 +1070,11 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     
     <script>
     // Variables globales
-    let currentVehiculo = null;
+    let currentConductor = null;
     let currentPage = 1;
     const rowsPerPage = 10;
     let filteredData = [];
-    let currentImageIndex = 0;
-    let totalImages = 0;
-
+    
     // Inicialización
     document.addEventListener('DOMContentLoaded', function() {
         // Configurar eventos
@@ -1218,18 +1112,8 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             }, 300);
         });
         
-        // Filtros
-        document.getElementById('filterMarca').addEventListener('change', function() {
-            currentPage = 1;
-            updateTable();
-        });
-        
-        document.getElementById('filterModelo').addEventListener('change', function() {
-            currentPage = 1;
-            updateTable();
-        });
-        
-        document.getElementById('filterMantenimiento').addEventListener('change', function() {
+        // Filtro por vehículo
+        document.getElementById('filterVehicle').addEventListener('change', function() {
             currentPage = 1;
             updateTable();
         });
@@ -1251,41 +1135,58 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         });
         
         // Previsualización de imágenes (agregar)
-        for (let i = 1; i <= 4; i++) {
-            document.getElementById(`imagen${i}`)?.addEventListener('change', function(e) {
-                const preview = document.getElementById(`preview${i}`);
-                const previewImg = document.getElementById(`previewImg${i}`);
-                
-                if (this.files && this.files[0]) {
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        previewImg.src = e.target.result;
-                        preview.style.display = 'block';
-                    }
-                    
-                    reader.readAsDataURL(this.files[0]);
-                }
-            });
+        document.getElementById('imagen')?.addEventListener('change', function(e) {
+            const preview = document.getElementById('preview');
+            const previewImg = document.getElementById('previewImg');
             
-            // Previsualización de imágenes (editar)
-            document.getElementById(`editar_imagen${i}`)?.addEventListener('change', function(e) {
-                const preview = document.getElementById(`editar_previewImg${i}`);
-                const currentImage = document.getElementById(`current_image${i}`);
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
                 
-                if (this.files && this.files[0]) {
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        preview.src = e.target.result;
-                        preview.style.display = 'block';
-                        currentImage.innerHTML = '';
-                    }
-                    
-                    reader.readAsDataURL(this.files[0]);
+                reader.onload = function(e) {
+                    previewImg.src = e.target.result;
+                    preview.style.display = 'block';
                 }
-            });
-        }
+                
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+        
+        // Previsualización de imágenes (editar)
+        document.getElementById('editar_imagen')?.addEventListener('change', function(e) {
+            const preview = document.getElementById('editar_previewImg');
+            const currentImage = document.getElementById('current_image');
+            
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    currentImage.innerHTML = '';
+                }
+                
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+        
+        // Validación de teléfono y DIP
+        document.getElementById('telefono')?.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+            if(this.value.length > 9) this.value = this.value.slice(0, 9);
+        });
+        
+        document.getElementById('dip')?.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+        
+        document.getElementById('editar_telefono')?.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+            if(this.value.length > 9) this.value = this.value.slice(0, 9);
+        });
+        
+        document.getElementById('editar_dip')?.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
     }
     
     // Configurar paginación
@@ -1301,25 +1202,20 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     // Actualizar tabla con filtros y paginación
     function updateTable() {
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-        const marcaFilter = document.getElementById('filterMarca').value;
-        const modeloFilter = document.getElementById('filterModelo').value;
-        const mantenimientoFilter = document.getElementById('filterMantenimiento').value;
+        const vehicleFilter = document.getElementById('filterVehicle').value;
         
         const rows = document.querySelectorAll('#tableBody tr');
         filteredData = [];
         
         rows.forEach(row => {
-            const marca = row.getAttribute('data-marca');
-            const modelo = row.getAttribute('data-modelo');
-            const mantenimiento = row.getAttribute('data-mantenimiento');
-            const texto = row.textContent.toLowerCase();
+            const nombre = row.cells[1].textContent.toLowerCase();
+            const telefono = row.cells[2].textContent.toLowerCase();
+            const vehiculoId = row.getAttribute('data-vehiculo');
             
-            const matchesSearch = texto.includes(searchTerm);
-            const matchesMarca = !marcaFilter || marca === marcaFilter;
-            const matchesModelo = !modeloFilter || modelo === modeloFilter;
-            const matchesMantenimiento = !mantenimientoFilter || mantenimiento === mantenimientoFilter;
+            const matchesSearch = nombre.includes(searchTerm) || telefono.includes(searchTerm);
+            const matchesVehicle = !vehicleFilter || vehiculoId === vehicleFilter;
             
-            if (matchesSearch && matchesMarca && matchesModelo && matchesMantenimiento) {
+            if (matchesSearch && matchesVehicle) {
                 filteredData.push(row);
                 row.style.display = '';
             } else {
@@ -1361,98 +1257,68 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     // Función para cerrar modal
     function cerrarModal(modalId) {
         document.getElementById(modalId).style.display = 'none';
-        // Reiniciar el carrusel al cerrar el modal
-        currentImageIndex = 0;
-        totalImages = 0;
     }
     
-    // Función para ver vehículo
-    function verVehiculo(vehiculo) {
-        currentVehiculo = vehiculo;
+    // Función para ver conductor
+    modal-vehicle__form-group {
+        currentConductor = conductor;
         
-        // Configurar conductor asignado
-        document.getElementById('nombreConductor').textContent = vehiculo.conductor_nombre || 'No asignado';
+        // Configurar foto del conductor
+        const fotoContainer = document.getElementById('conductorFotoContainer');
+        fotoContainer.innerHTML = '';
         
-        // Configurar estado del badge
-        const diferenciaKm = vehiculo.km_aceite - vehiculo.km_actual;
-        let estado = 'Activo';
-        let badgeColor = '#10b981'; // Verde
-        
-        if (diferenciaKm <= 0) {
-            estado = 'Mantenimiento urgente';
-            badgeColor = '#ef4444'; // Rojo
-        } else if (diferenciaKm <= 500) {
-            estado = 'Próximo a mantenimiento';
-            badgeColor = '#f59e0b'; // Amarillo
-        }
-        
-        document.getElementById('vehicleStatusBadge').textContent = estado;
-        document.getElementById('vehicleStatusBadge').style.background = badgeColor;
-        
-        // Generar HTML para el carrusel de imágenes
-        let carouselHTML = `
-            <div class="vehicle-carousel__images" id="vehicleCarouselImages">
-        `;
-        
-        let hasImages = false;
-        for (let i = 1; i <= 4; i++) {
-            const imgField = `imagen${i}`;
-            if (vehiculo[imgField]) {
-                hasImages = true;
-                carouselHTML += `
-                    <img class="vehicle-carousel__image" 
-                         src="../../imagenes/vehiculos/${vehiculo[imgField]}" 
-                         alt="Vehículo ${i}">
-                `;
-            }
-        }
-        
-        if (!hasImages) {
-            carouselHTML += `
-                <div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; color: #64748b;">
-                    No hay imágenes disponibles
+        if (conductor.imagen) {
+            fotoContainer.innerHTML = `
+                <img src="../../imagenes/conductores/${conductor.imagen}" 
+                     class="conductor-photo" 
+                     alt="Foto del conductor"
+                     loading="lazy">
+            `;
+        } else {
+            fotoContainer.innerHTML = `
+                <div style="color: #64748b; text-align: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5.52 19c.64-2.2 1.84-3 3.22-3h6.52c1.38 0 2.58.8 3.22 3"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                        <circle cx="12" cy="12" r="10"></circle>
+                    </svg>
+                    <p>No hay foto disponible</p>
                 </div>
             `;
         }
         
-        carouselHTML += `
-            </div>
-            ${hasImages ? `
-            <div class="vehicle-carousel__nav">
-                <button class="vehicle-carousel__btn" onclick="prevImage()">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M15 18l-6-6 6-6"></path>
-                    </svg>
-                </button>
-                <button class="vehicle-carousel__btn" onclick="nextImage()">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 18l6-6-6-6"></path>
-                    </svg>
-                </button>
-            </div>
-            <div class="vehicle-carousel__counter" id="imageCounter">1/${hasImages ? document.querySelectorAll('.vehicle-carousel__image').length : '0'}</div>
-            ` : ''}
-        `;
+        // Configurar vehículo asignado
+        document.getElementById('vehiculoAsignado').textContent = 
+            conductor.vehiculo_id ? 
+            `${conductor.vehiculo_marca} ${conductor.vehiculo_modelo} - ${conductor.vehiculo_matricula}` : 
+            'No asignado';
         
-        // Insertar el carrusel en el header
-        const carouselContainer = document.querySelector('.modal-vehicle__header .vehicle-carousel');
-        carouselContainer.innerHTML = carouselHTML;
+        // Configurar estado (puedes personalizar según tus necesidades)
+        const estado = conductor.estado || 'Activo';
+        let badgeColor = '#10b981'; // Verde por defecto (Activo)
+        
+        if (estado.toLowerCase() === 'inactivo') {
+            badgeColor = '#ef4444'; // Rojo
+        }
+        
+        document.getElementById('conductorStatusBadge').textContent = estado;
+        document.getElementById('conductorStatusBadge').style.background = badgeColor;
         
         // Datos para las columnas
         const columna1 = [
-            { label: 'MARCA', value: vehiculo.marca || 'N/A' },
-            { label: 'MODELO', value: vehiculo.modelo || 'N/A' },
-            { label: 'AÑO', value: vehiculo.year || 'N/A' },
-            { label: 'MATRÍCULA', value: vehiculo.matricula || 'N/A' },
-            { label: 'NÚMERO', value: vehiculo.numero || 'N/A' }
+            { label: 'FECHA REGISTRO', value: conductor.fecha || 'N/A' },
+            { label: 'NOMBRE', value: conductor.nombre || 'N/A' },
+            { label: 'TELÉFONO', value: conductor.telefono || 'N/A' },
+            { label: 'DIP', value: conductor.dip || 'N/A' },
+            
         ];
         
         const columna2 = [
-            { label: 'KILOMETRAJE INICIAL', value: (vehiculo.km_inicial || '0') + ' km' },
-            { label: 'KILOMETRAJE ACTUAL', value: (vehiculo.km_actual || '0') + ' km' },
-            { label: 'PRÓXIMO MANTENIMIENTO', value: (vehiculo.km_aceite || '0') + ' km' },
-            //{ label: 'ESTADO', value: estado },
-            //{ label: 'CONDUCTOR ASIGNADO', value: vehiculo.conductor_nombre || 'No asignado' }
+            { label: 'INGRESO OBLIGATORIO', value: (conductor.ingreso_obligatorio || '0') + ' FCFA' },
+            { label: 'INGRESO LIBRE', value: (conductor.ingreso_libre || '0') + ' FCFA' },
+            { label: 'ESTADO', value: estado },
+            //{ label: 'OBSERVACIONES', value: conductor.observaciones || 'Ninguna' }
+            { label: 'DIAS DE TRABAJO', value: conductor.dias_por_ciclo || 'N/A' },
         ];
         
         // Generar HTML para las tablas
@@ -1480,103 +1346,145 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         `;
         
         // Insertar todo el contenido
-        document.getElementById('detalleVehiculo').innerHTML = html;
+        document.getElementById('detalleConductor').innerHTML = html;
         
-        // Inicializar el carrusel si hay imágenes
-        if (hasImages) {
-            initCarousel();
-        }
+        // Ocultar sección de historial
+        document.getElementById('historialContent').style.display = 'none';
         
         // Mostrar modal
         abrirModal('modalVer');
     }
     
-    // Funciones para el carrusel
-    function initCarousel() {
-        const images = document.querySelectorAll('.vehicle-carousel__image');
-        totalImages = images.length;
-        updateCounter();
-    }
-    
-    function prevImage() {
-        if (currentImageIndex > 0) {
-            currentImageIndex--;
-        } else {
-            currentImageIndex = totalImages - 1;
-        }
-        updateCarousel();
-    }
-    
-    function nextImage() {
-        if (currentImageIndex < totalImages - 1) {
-            currentImageIndex++;
-        } else {
-            currentImageIndex = 0;
-        }
-        updateCarousel();
-    }
-    
-    function updateCarousel() {
-        const carousel = document.getElementById('vehicleCarouselImages');
-        carousel.style.transform = `translateX(-${currentImageIndex * 100}%)`;
-        updateCounter();
-    }
-    
-    function updateCounter() {
-        const counter = document.getElementById('imageCounter');
-        if (counter) {
-            counter.textContent = `${currentImageIndex + 1}/${totalImages}`;
-        }
-    }
-    
-    // Función para editar vehículo
-    function editarVehiculo(vehiculo = null) {
-        if (!vehiculo && currentVehiculo) {
-            vehiculo = currentVehiculo;
+    // Función para editar conductor
+    function editarConductor(conductor = null) {
+        if (!conductor && currentConductor) {
+            conductor = currentConductor;
         }
         
-        if (vehiculo) {
-            document.getElementById('editar_id').value = vehiculo.id;
-            document.getElementById('editar_marca').value = vehiculo.marca;
-            document.getElementById('editar_modelo').value = vehiculo.modelo;
-            document.getElementById('editar_year').value = vehiculo.year;
-            document.getElementById('editar_matricula').value = vehiculo.matricula;
-            document.getElementById('editar_numero').value = vehiculo.numero;
-            document.getElementById('editar_km_inicial').value = vehiculo.km_inicial;
-            document.getElementById('editar_km_actual').value = vehiculo.km_actual;
-            document.getElementById('editar_km_aceite').value = vehiculo.km_aceite;
+        if (conductor) {
+            document.getElementById('editar_id').value = conductor.id;
+            document.getElementById('editar_fecha').value = conductor.fecha;
+            document.getElementById('editar_nombre').value = conductor.nombre;
+            document.getElementById('editar_telefono').value = conductor.telefono;
+            document.getElementById('editar_dip').value = conductor.dip;
+            document.getElementById('editar_dias_por_ciclo').value = conductor.dias_por_ciclo;
+            document.getElementById('editar_ingreso_obligatorio').value = conductor.ingreso_obligatorio;
+            document.getElementById('editar_ingreso_libre').value = conductor.ingreso_libre;
+            document.getElementById('editar_vehiculo_id').value = conductor.vehiculo_id || '';
+            document.getElementById('imagen_actual').value = conductor.imagen || '';
             
-            // Mostrar imágenes actuales
-            for (let i = 1; i <= 4; i++) {
-                const imgField = `imagen${i}`;
-                const previewDiv = document.getElementById(`current_image${i}`);
-                const hiddenInput = document.getElementById(`imagen_actual${i}`);
-                
-                if (vehiculo[imgField]) {
-                    hiddenInput.value = vehiculo[imgField];
-                    previewDiv.innerHTML = `
-                        <img src="../../imagenes/vehiculos/${vehiculo[imgField]}" 
-                             class="modal-vehicle__preview-image"
-                             style="max-width: 100px; max-height: 80px;">
-                        <div style="font-size: 12px; color: #666; text-align: center; margin-top: 5px;">Imagen actual</div>
-                    `;
-                } else {
-                    previewDiv.innerHTML = '<div style="color: #999; font-size: 12px; text-align: center;">No hay imagen</div>';
-                }
+            // Mostrar imagen actual
+            const previewDiv = document.getElementById('current_image');
+            if (conductor.imagen) {
+                previewDiv.innerHTML = `
+                    <img src="../../imagenes/conductores/${conductor.imagen}" 
+                         class="modal-vehicle__preview-image"
+                         style="max-width: 100px; max-height: 80px;"
+                         loading="lazy">
+                    <div style="font-size: 12px; color: #666; text-align: center; margin-top: 5px;">Foto actual</div>
+                `;
+            } else {
+                previewDiv.innerHTML = '<div style="color: #999; font-size: 12px; text-align: center;">No hay foto</div>';
             }
             
             cerrarModal('modalVer');
             abrirModal('modalEditar');
         } else {
-            // Si no hay vehículo, abrir modal de agregar
+            // Si no hay conductor, abrir modal de agregar
             cerrarModal('modalVer');
             abrirModal('modalAgregar');
         }
     }
     
+    // Función para mostrar historial
+    function mostrarHistorial(tipo) {
+        if (!currentConductor) return;
+        
+        const historialContent = document.getElementById('historialContent');
+        const historialTitle = document.getElementById('historialTitle');
+        const historialData = document.getElementById('historialData');
+        
+        // Configurar título según el tipo de historial
+        let titulo = '';
+        let datosEjemplo = '';
+        
+        switch(tipo) {
+            case 'ingresos':
+                titulo = 'Historial de Ingresos';
+                datosEjemplo = `
+                    <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Fecha:</strong> 15/06/2023</span>
+                            <span><strong>Monto:</strong> 14,000 FCFA</span>
+                        </div>
+                        <div style="margin-top: 5px;"><strong>Descripción:</strong> Ingreso día laboral</div>
+                    </div>
+                    <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Fecha:</strong> 14/06/2023</span>
+                            <span><strong>Monto:</strong> 14,000 FCFA</span>
+                        </div>
+                        <div style="margin-top: 5px;"><strong>Descripción:</strong> Ingreso día laboral</div>
+                    </div>
+                `;
+                break;
+                
+            case 'salarios':
+                titulo = 'Historial de Salarios';
+                datosEjemplo = `
+                    <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Fecha:</strong> 31/05/2023</span>
+                            <span><strong>Monto:</strong> 250,000 FCFA</span>
+                        </div>
+                        <div style="margin-top: 5px;"><strong>Descripción:</strong> Pago de salario mensual</div>
+                    </div>
+                    <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Fecha:</strong> 30/04/2023</span>
+                            <span><strong>Monto:</strong> 250,000 FCFA</span>
+                        </div>
+                        <div style="margin-top: 5px;"><strong>Descripción:</strong> Pago de salario mensual</div>
+                    </div>
+                `;
+                break;
+                
+            case 'deudas':
+                titulo = 'Historial de Deudas';
+                datosEjemplo = `
+                    <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Fecha:</strong> 10/06/2023</span>
+                            <span><strong>Monto:</strong> 50,000 FCFA</span>
+                        </div>
+                        <div style="margin-top: 5px;"><strong>Descripción:</strong> Adelanto de salario</div>
+                        <div style="margin-top: 5px;"><strong>Estado:</strong> Pendiente</div>
+                    </div>
+                    <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Fecha:</strong> 15/05/2023</span>
+                            <span><strong>Monto:</strong> 30,000 FCFA</span>
+                        </div>
+                        <div style="margin-top: 5px;"><strong>Descripción:</strong> Reparación vehículo</div>
+                        <div style="margin-top: 5px;"><strong>Estado:</strong> Pagado</div>
+                    </div>
+                `;
+                break;
+        }
+        
+        historialTitle.textContent = titulo;
+        historialData.innerHTML = datosEjemplo;
+        historialContent.style.display = 'block';
+        
+        // Desplazarse a la sección de historial
+        setTimeout(() => {
+            historialContent.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    }
+    
     // Confirmar eliminación
     function confirmarEliminacion() {
-        return confirm('¿Estás seguro de que deseas eliminar este vehículo?');
+        return confirm('¿Estás seguro de que deseas eliminar este conductor?');
     }
     
     // Cerrar modal al hacer clic fuera del contenido

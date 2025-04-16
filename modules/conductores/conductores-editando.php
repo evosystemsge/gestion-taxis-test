@@ -69,22 +69,12 @@ if (isset($_POST['accion'])) {
 
     } elseif ($accion == 'eliminar') {
         $id = $_POST['id'];
-    
+        
         // Verificar si tiene vehículo asignado
         $stmt = $pdo->prepare("SELECT vehiculo_id, imagen FROM conductores WHERE id = ?");
         $stmt->execute([$id]);
         $conductor = $stmt->fetch();
-    
-        // Verificar si tiene ingresos vinculados
-        $verificarIngresos = $pdo->prepare("SELECT COUNT(*) FROM ingresos WHERE conductor_id = ?");
-        $verificarIngresos->execute([$id]);
-        $tieneIngresos = $verificarIngresos->fetchColumn();
-    
-        if ($tieneIngresos > 0) {
-            echo "<script>alert('No se puede eliminar este conductor porque tiene ingresos registrados.'); window.location.href='conductores.php';</script>";
-            exit;
-        }
-    
+        
         if ($conductor && $conductor['vehiculo_id']) {
             echo "<script>alert('No se puede eliminar este conductor. Primero desvincúlelo de un vehículo.'); window.location.href='conductores.php';</script>";
         } else {
@@ -95,13 +85,13 @@ if (isset($_POST['accion'])) {
                     unlink($filePath);
                 }
             }
-    
+            
             $stmt = $pdo->prepare("DELETE FROM conductores WHERE id = ?");
             $stmt->execute([$id]);
             echo "<script>alert('Conductor eliminado correctamente.'); window.location.href='conductores.php';</script>";
         }
-    }
-    elseif ($accion == 'editar') {
+
+    } elseif ($accion == 'editar') {
         $id = $_POST['id'];
         $imagen = null;
         
@@ -173,9 +163,12 @@ $sqlConductores = "SELECT c.*, v.marca AS vehiculo_marca, v.modelo AS vehiculo_m
                   ORDER BY c.fecha DESC";
 $conductores = $pdo->query($sqlConductores)->fetchAll();
 
-$sqlVehiculos = "SELECT * FROM vehiculos 
-                 WHERE id NOT IN (SELECT vehiculo_id FROM conductores WHERE vehiculo_id IS NOT NULL)";
-$vehiculosDisponibles = $pdo->query($sqlVehiculos)->fetchAll();
+$vehiculosDisponibles = $pdo->query("SELECT * FROM vehiculos 
+                                    WHERE id NOT IN (SELECT vehiculo_id FROM conductores WHERE vehiculo_id IS NOT NULL)")
+                            ->fetchAll();
+
+// Obtener todos los vehículos para el dropdown de edición
+$todosVehiculos = $pdo->query("SELECT * FROM vehiculos")->fetchAll();
 
 $marcasUnicas = $pdo->query("SELECT DISTINCT marca FROM vehiculos")->fetchAll();
 $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll();
@@ -187,6 +180,7 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Conductores</title>
+    <!-- Estilos (se mantienen igual) -->
     <style>
     /* ============ ESTILOS PRINCIPALES ============ */
     :root {
@@ -799,6 +793,7 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
     </style>
 </head>
 <body>
+    <!-- Contenedor principal y controles (se mantienen igual) -->
     <div class="container">
         <h2>Lista de Conductores</h2>
         
@@ -919,7 +914,7 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
         </div>
     </div>
     
-    <!-- Botones flotantes -->
+    <!-- Botones flotantes (se mantienen igual) -->
     <div class="action-buttons">
         <button class="action-button" id="btnScrollTop" title="Ir arriba">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -936,7 +931,7 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
     
     <!-- Modales -->
     
-    <!-- Modal Agregar Conductor -->
+    <!-- Modal Agregar Conductor (se mantiene igual) -->
     <div id="modalAgregar" class="modal-vehicle">
         <div class="modal-vehicle__overlay" onclick="cerrarModal('modalAgregar')"></div>
         <div class="modal-vehicle__container">
@@ -985,12 +980,12 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
                             <label for="ingreso_obligatorio" class="modal-vehicle__form-label">Ingreso Obligatorio (XAF)</label>
-                            <input type="number" name="ingreso_obligatorio" id="ingreso_obligatorio" class="modal-vehicle__form-input" placeholder="Ej: 14000" required step="1" min="0">
+                            <input type="number" name="ingreso_obligatorio" id="ingreso_obligatorio" class="modal-vehicle__form-input" placeholder="Ej: 14000" required>
                         </div>
                         
                         <div class="modal-vehicle__form-group">
                             <label for="ingreso_libre" class="modal-vehicle__form-label">Ingreso Libre (XAF)</label>
-                            <input type="number" name="ingreso_libre" id="ingreso_libre" class="modal-vehicle__form-input" placeholder="Ej: 10000" required step="1" min="0">
+                            <input type="number" name="ingreso_libre" id="ingreso_libre" class="modal-vehicle__form-input" placeholder="Ej: 10000" required>
                         </div>
                     </div>
                     
@@ -1002,7 +997,7 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
                         
                         <div class="modal-vehicle__form-group">
                             <label for="salario_mensual" class="modal-vehicle__form-label">Salario Mensual (XAF)</label>
-                            <input type="number" name="salario_mensual" id="salario_mensual" class="modal-vehicle__form-input" placeholder="Ej: 250000" required step="1" min="0">
+                            <input type="number" name="salario_mensual" id="salario_mensual" class="modal-vehicle__form-input" placeholder="Ej: 250000" required>
                         </div>
                     </div>
                     
@@ -1123,6 +1118,7 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
         </div>
     </div>
     
+    
     <!-- Modal Editar Conductor -->
     <div id="modalEditar" class="modal-vehicle">
         <div class="modal-vehicle__overlay" onclick="cerrarModal('modalEditar')"></div>
@@ -1174,12 +1170,12 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
                             <label for="editar_ingreso_obligatorio" class="modal-vehicle__form-label">Ingreso Obligatorio (XAF)</label>
-                            <input type="number" id="editar_ingreso_obligatorio" name="ingreso_obligatorio" class="modal-vehicle__form-input" required step="1" min="0">
+                            <input type="number" id="editar_ingreso_obligatorio" name="ingreso_obligatorio" class="modal-vehicle__form-input" required>
                         </div>
                         
                         <div class="modal-vehicle__form-group">
                             <label for="editar_ingreso_libre" class="modal-vehicle__form-label">Ingreso Libre (XAF)</label>
-                            <input type="number" id="editar_ingreso_libre" name="ingreso_libre" class="modal-vehicle__form-input" required step="1" min="0">
+                            <input type="number" id="editar_ingreso_libre" name="ingreso_libre" class="modal-vehicle__form-input" required>
                         </div>
                     </div>
                     
@@ -1191,16 +1187,20 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
                         
                         <div class="modal-vehicle__form-group">
                             <label for="editar_salario_mensual" class="modal-vehicle__form-label">Salario Mensual (XAF)</label>
-                            <input type="number" id="editar_salario_mensual" name="salario_mensual" class="modal-vehicle__form-input" required step="1" min="0">
+                            <input type="number" id="editar_salario_mensual" name="salario_mensual" class="modal-vehicle__form-input" required>
                         </div>
                     </div>
                     
                     <div class="modal-vehicle__form-group">
                         <label for="editar_vehiculo_id" class="modal-vehicle__form-label">Vehículo Asignado</label>
                         <select name="vehiculo_id" id="editar_vehiculo_id" class="modal-vehicle__form-input">
-    <option value="">Seleccione un vehículo</option>
-    <!-- Las opciones se llenarán dinámicamente con JavaScript -->
-</select>
+                            <option value="">Seleccione un vehículo</option>
+                            <?php foreach ($vehiculosDisponibles as $vehiculo): ?>
+                                <option value="<?= $vehiculo['id'] ?>">
+                                    <?= htmlspecialchars($vehiculo['marca']) ?> <?= htmlspecialchars($vehiculo['modelo']) ?> - <?= htmlspecialchars($vehiculo['matricula']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     
                     <div class="modal-vehicle__form-group">
@@ -1253,19 +1253,28 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
     // Configurar eventos
     function initEventListeners() {
         // Botón agregar
-        document.getElementById('openModalAgregar').addEventListener('click', function() {
-            abrirModal('modalAgregar');
-            // Establecer fecha actual por defecto
-            document.getElementById('fecha').valueAsDate = new Date();
-        });
+        document.getElementById('openModalAgregar')?.addEventListener('click', function() {
+        abrirModal('modalAgregar');
+        document.getElementById('fecha').valueAsDate = new Date();
+    });
         
         // Botón flotante agregar
-        document.getElementById('btnAddNew').addEventListener('click', function() {
-            abrirModal('modalAgregar');
-            // Establecer fecha actual por defecto
-            document.getElementById('fecha').valueAsDate = new Date();
+        document.getElementById('btnAddNew')?.addEventListener('click', function() {
+        abrirModal('modalAgregar');
+        document.getElementById('fecha').valueAsDate = new Date();
+    });
+    document.querySelectorAll('.btn-ver').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const conductorData = JSON.parse(this.getAttribute('onclick').match(/\((.*)\)/)[1]);
+            verConductor(conductorData);
         });
-        
+    });
+    document.querySelectorAll('.btn-editar').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const conductorData = JSON.parse(this.getAttribute('onclick').match(/\((.*)\)/)[1]);
+            editarConductor(conductorData);
+        });
+    });
         // Botón flotante ir arriba
         document.getElementById('btnScrollTop').addEventListener('click', function() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1392,51 +1401,61 @@ $modelosUnicos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos")->fetchAll(
         document.getElementById('pageInfo').textContent = `Página ${currentPage} de ${totalPages}`;
     }
     
-    // Función para exportar datos
-// Función para exportar datos a PDF
-function exportarDatos() {
-    const btn = document.getElementById('btnExportar');
-    const originalHtml = btn.innerHTML;
-    
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando PDF...';
-    btn.disabled = true;
-    
-    // Usar html2pdf para generar el PDF
-    const element = document.querySelector('.table-container');
-    const opt = {
-        margin: 10,
-        filename: 'conductores.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-    };
-    
-    // Cargar la librería html2pdf si no está cargada
-    if (typeof html2pdf !== 'undefined') {
-        html2pdf().from(element).set(opt).save().then(() => {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-            mostrarNotificacion('success', 'PDF generado con éxito');
-        });
-    } else {
-        // Cargar la librería dinámicamente
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        script.onload = () => {
-            html2pdf().from(element).set(opt).save().then(() => {
+    // Función para exportar datos a CSV
+    function exportarDatos() {
+        const btn = document.getElementById('btnExportar');
+        const originalHtml = btn.innerHTML;
+        
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Exportando...';
+        btn.disabled = true;
+        
+        try {
+            // Obtener todos los datos visibles (filtrados)
+            const rows = Array.from(document.querySelectorAll('#tableBody tr')).filter(row => row.style.display !== 'none');
+            
+            if (rows.length === 0) {
+                mostrarNotificacion('error', 'No hay datos para exportar');
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
-                mostrarNotificacion('success', 'PDF generado con éxito');
+                return;
+            }
+            
+            // Preparar los datos para CSV
+            let csvContent = "ID,Fecha,Nombre,Telefono,DIP,Vehículo Asignado\n";
+            
+            rows.forEach(row => {
+                const cells = row.cells;
+                const rowData = [
+                    cells[0].textContent,
+                    cells[1].textContent,
+                    cells[2].textContent,
+                    cells[3].textContent,
+                    cells[4].textContent,
+                    cells[5].textContent.replace(/\n/g, ' ').trim()
+                ];
+                csvContent += rowData.join(',') + '\n';
             });
-        };
-        script.onerror = () => {
+            
+            // Crear archivo CSV
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `conductores_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            mostrarNotificacion('success', 'Exportación completada con éxito');
+        } catch (error) {
+            console.error('Error al exportar:', error);
+            mostrarNotificacion('error', 'Error al exportar los datos');
+        } finally {
             btn.innerHTML = originalHtml;
             btn.disabled = false;
-            mostrarNotificacion('error', 'Error al cargar la librería PDF');
-        };
-        document.head.appendChild(script);
+        }
     }
-}
     
     // Función para mostrar notificaciones
     function mostrarNotificacion(tipo, mensaje) {
@@ -1550,204 +1569,194 @@ function exportarDatos() {
         document.getElementById(modalId).style.display = 'none';
     }
     
-    // Función para ver conductor
-// Función para ver conductor - Versión corregida
-function verConductor(conductor) {
-    currentConductor = conductor;
-    abrirModal('modalVer');
-    
-    // Configurar foto del conductor
-    const fotoContainer = document.getElementById('conductorFotoContainer');
-    fotoContainer.innerHTML = '';
-    
-    if (conductor.imagen) {
-        fotoContainer.innerHTML = `
-            <img src="../../imagenes/conductores/${conductor.imagen}" 
-                 class="conductor-photo" 
-                 alt="Foto del conductor"
-                 loading="lazy">
-        `;
-    } else {
-        fotoContainer.innerHTML = `
-            <div style="color: #64748b; text-align: center;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M5.52 19c.64-2.2 1.84-3 3.22-3h6.52c1.38 0 2.58.8 3.22 3"></path>
-                    <circle cx="12" cy="10" r="3"></circle>
-                    <circle cx="12" cy="12" r="10"></circle>
-                </svg>
-                <p>No hay foto disponible</p>
-            </div>
-        `;
-    }
-    
-    // Configurar vehículo asignado
-    document.getElementById('vehiculoAsignado').textContent = 
-        conductor.vehiculo_id ? 
-        `${conductor.vehiculo_marca} ${conductor.vehiculo_modelo} - ${conductor.vehiculo_matricula}` : 
-        'No asignado';
-    
-    // Configurar estado
-    const estado = 'Activo';
-    document.getElementById('conductorStatusBadge').textContent = estado;
-    document.getElementById('conductorStatusBadge').style.background = '#10b981';
-    
-    // Calcular antigüedad
-    const fechaRegistro = new Date(conductor.fecha);
-    const hoy = new Date();
-    const diffTime = Math.abs(hoy - fechaRegistro);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const diffMonths = hoy.getMonth() - fechaRegistro.getMonth() + (12 * (hoy.getFullYear() - fechaRegistro.getFullYear()));
-    const diffYears = hoy.getFullYear() - fechaRegistro.getFullYear();
-    
-    let antiguedad = '';
-    if (diffYears > 0) {
-        antiguedad = `${diffYears} año${diffYears > 1 ? 's' : ''}`;
-        if (diffMonths % 12 > 0) {
-            antiguedad += ` y ${diffMonths % 12} mes${diffMonths % 12 > 1 ? 'es' : ''}`;
-        }
-    } else if (diffMonths > 0) {
-        antiguedad = `${diffMonths} mes${diffMonths > 1 ? 'es' : ''}`;
-        if (diffDays % 30 > 0) {
-            antiguedad += ` y ${diffDays % 30} día${diffDays % 30 > 1 ? 's' : ''}`;
-        }
-    } else {
-        antiguedad = `${diffDays} día${diffDays > 1 ? 's' : ''}`;
-    }
-    
-    // Formatear números sin decimales
-// Función para formatear números sin decimales
-// Función para formatear números sin decimales
-const formatNumber = num => {
-    // Convertir a entero (por si acaso viene con decimales de la base de datos)
-    const numeroEntero = Math.round(Number(num) || 0);
-    // Formatear con separadores de miles
-    return numeroEntero.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-};
-    
-    // Datos para mostrar
-    const columna1 = [
-        { label: 'NOMBRE', value: conductor.nombre || 'N/A' },
-        { label: 'DIRECCIÓN', value: conductor.direccion || 'N/A' },
-        { label: 'TELÉFONO', value: conductor.telefono || 'N/A' },
-        { label: 'DIP', value: conductor.dip || 'N/A' },
-        { label: 'FECHA REGISTRO', value: conductor.fecha || 'N/A' }
-    ];
-    
-    const columna2 = [
-        { label: 'INGRESO', value: formatNumber(conductor.ingreso_obligatorio) + ' XAF' },
-        { label: 'DIAS LIBRES', value: formatNumber(conductor.ingreso_libre) + ' XAF' },
-        { label: 'SALARIO', value: formatNumber(conductor.salario_mensual) + ' XAF' },
-        { label: 'DÍAS DE TRABAJO', value: conductor.dias_por_ciclo || 'N/A' },
-        { label: 'ANTIGÜEDAD', value: antiguedad }
-    ];
-    
-    // Generar HTML para las tablas
-    const html = `
-        <div style="flex: 1; min-width: 300px;">
-            <table class="modal-vehicle__data-table">
-                ${columna1.map(item => `
-                    <tr>
-                        <td class="modal-vehicle__data-label">${item.label}</td>
-                        <td class="modal-vehicle__data-value">${item.value}</td>
-                    </tr>
-                `).join('')}
-            </table>
-        </div>
-        <div style="flex: 1; min-width: 300px;">
-            <table class="modal-vehicle__data-table">
-                ${columna2.map(item => `
-                    <tr>
-                        <td class="modal-vehicle__data-label">${item.label}</td>
-                        <td class="modal-vehicle__data-value">${item.value}</td>
-                    </tr>
-                `).join('')}
-            </table>
-        </div>
-    `;
-    
-    // Insertar contenido
-    document.getElementById('detalleConductor').innerHTML = html;
-    
-    // Ocultar sección de historial
-    document.getElementById('historialContent').style.display = 'none';
-}
-    
-    // Función para editar conductor
-    // Función para editar conductor - Versión corregida
-function editarConductor(conductor = null) {
-    if (!conductor && currentConductor) {
-        conductor = currentConductor;
-    }
-    
-    if (conductor) {
-        // Llenar los campos del formulario
-        document.getElementById('editar_id').value = conductor.id;
-        document.getElementById('editar_fecha').value = conductor.fecha;
-        document.getElementById('editar_nombre').value = conductor.nombre;
-        document.getElementById('editar_direccion').value = conductor.direccion || '';
-        document.getElementById('editar_telefono').value = conductor.telefono;
-        document.getElementById('editar_dip').value = conductor.dip;
-        document.getElementById('editar_ingreso_obligatorio').value = conductor.ingreso_obligatorio;
-        document.getElementById('editar_ingreso_libre').value = conductor.ingreso_libre;
-        document.getElementById('editar_dias_por_ciclo').value = conductor.dias_por_ciclo;
-        document.getElementById('editar_salario_mensual').value = conductor.salario_mensual;
-        document.getElementById('imagen_actual').value = conductor.imagen || '';
+    // Función para ver conductor - CORREGIDA
+    function verConductor(conductor) {
+        currentConductor = conductor;
         
-        // Configurar vehículo asignado
-        const vehiculoSelect = document.getElementById('editar_vehiculo_id');
+        // Mostrar loading
+        const modalBody = document.querySelector('#modalVer .modal-vehicle__body');
+        modalBody.innerHTML = '<div class="loading-spinner"></div>';
         
-        // Guardar el vehículo actualmente seleccionado
-        const vehiculoActual = conductor.vehiculo_id || '';
+        // Mostrar modal inmediatamente
+        abrirModal('modalVer');
         
-        // Reconstruir el select con todas las opciones
-        vehiculoSelect.innerHTML = '<option value="">Seleccione un vehículo</option>';
-        
-        // Obtener vehículos disponibles desde PHP
-        const vehiculosDisponibles = <?php echo json_encode($vehiculosDisponibles); ?>;
-        
-        // Si el conductor tiene un vehículo asignado, agregarlo a las opciones aunque no esté disponible
-        if (conductor.vehiculo_id) {
-            vehiculosDisponibles.push({
-                id: conductor.vehiculo_id,
-                marca: conductor.vehiculo_marca,
-                modelo: conductor.vehiculo_modelo,
-                matricula: conductor.vehiculo_matricula
-            });
-        }
-        
-        // Llenar el select con las opciones
-        vehiculosDisponibles.forEach(vehiculo => {
-            const option = document.createElement('option');
-            option.value = vehiculo.id;
-            option.textContent = `${vehiculo.marca} ${vehiculo.modelo} - ${vehiculo.matricula}`;
-            if (vehiculoActual && vehiculo.id == vehiculoActual) {
-                option.selected = true;
+        // Simular carga de datos
+        setTimeout(() => {
+            // Configurar foto del conductor
+            const fotoContainer = document.getElementById('conductorFotoContainer');
+            fotoContainer.innerHTML = '';
+            
+            if (conductor.imagen) {
+                fotoContainer.innerHTML = `
+                    <img src="../../imagenes/conductores/${conductor.imagen}" 
+                         class="conductor-photo" 
+                         alt="Foto del conductor"
+                         loading="lazy">
+                `;
+            } else {
+                fotoContainer.innerHTML = `
+                    <div style="color: #64748b; text-align: center;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5.52 19c.64-2.2 1.84-3 3.22-3h6.52c1.38 0 2.58.8 3.22 3"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                            <circle cx="12" cy="12" r="10"></circle>
+                        </svg>
+                        <p>No hay foto disponible</p>
+                    </div>
+                `;
             }
-            vehiculoSelect.appendChild(option);
-        });
-        
-        // Mostrar imagen actual
-        const previewDiv = document.getElementById('current_image');
-        if (conductor.imagen) {
-            previewDiv.innerHTML = `
-                <img src="../../imagenes/conductores/${conductor.imagen}" 
-                     class="modal-vehicle__preview-image"
-                     style="max-width: 100px; max-height: 80px;"
-                     loading="lazy">
-                <div style="font-size: 12px; color: #666; text-align: center; margin-top: 5px;">Foto actual</div>
+            
+            // Configurar vehículo asignado
+            document.getElementById('vehiculoAsignado').textContent = 
+                conductor.vehiculo_id ? 
+                `${conductor.vehiculo_marca} ${conductor.vehiculo_modelo} - ${conductor.vehiculo_matricula}` : 
+                'No asignado';
+            
+            // Configurar estado
+            const estado = 'Activo';
+            document.getElementById('conductorStatusBadge').textContent = estado;
+            document.getElementById('conductorStatusBadge').style.background = '#10b981';
+            
+            // Calcular antigüedad
+            const fechaRegistro = new Date(conductor.fecha);
+            const hoy = new Date();
+            const diffTime = Math.abs(hoy - fechaRegistro);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffMonths = hoy.getMonth() - fechaRegistro.getMonth() + (12 * (hoy.getFullYear() - fechaRegistro.getFullYear()));
+            const diffYears = hoy.getFullYear() - fechaRegistro.getFullYear();
+            
+            let antiguedad = '';
+            if (diffYears > 0) {
+                antiguedad = `${diffYears} año${diffYears > 1 ? 's' : ''}`;
+                if (diffMonths % 12 > 0) {
+                    antiguedad += ` y ${diffMonths % 12} mes${diffMonths % 12 > 1 ? 'es' : ''}`;
+                }
+            } else if (diffMonths > 0) {
+                antiguedad = `${diffMonths} mes${diffMonths > 1 ? 'es' : ''}`;
+                if (diffDays % 30 > 0) {
+                    antiguedad += ` y ${diffDays % 30} día${diffDays % 30 > 1 ? 's' : ''}`;
+                }
+            } else {
+                antiguedad = `${diffDays} día${diffDays > 1 ? 's' : ''}`;
+            }
+            
+            // Formatear números
+            const formatNumber = num => num ? num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '0';
+            
+            // Datos para mostrar
+            const columna1 = [
+                { label: 'FECHA REGISTRO', value: conductor.fecha || 'N/A' },
+                { label: 'NOMBRE', value: conductor.nombre || 'N/A' },
+                { label: 'DIRECCIÓN', value: conductor.direccion || 'N/A' },
+                { label: 'TELÉFONO', value: conductor.telefono || 'N/A' },
+                { label: 'DIP', value: conductor.dip || 'N/A' },
+                { label: 'ANTIGÜEDAD', value: antiguedad }
+            ];
+            
+            const columna2 = [
+                { label: 'INGRESO OBLIGATORIO', value: formatNumber(conductor.ingreso_obligatorio) + ' XAF' },
+                { label: 'INGRESO LIBRE', value: formatNumber(conductor.ingreso_libre) + ' XAF' },
+                { label: 'SALARIO MENSUAL', value: formatNumber(conductor.salario_mensual) + ' XAF' },
+                { label: 'DÍAS DE TRABAJO', value: conductor.dias_por_ciclo || 'N/A' },
+                { label: 'ESTADO', value: estado },
+                { label: 'Vehículo', value: conductor.vehiculo_id ? 
+                    `${conductor.vehiculo_marca} ${conductor.vehiculo_modelo} (${conductor.vehiculo_matricula})` : 
+                    'No asignado' }
+            ];
+            
+            // Generar HTML para las tablas
+            const html = `
+                <div style="flex: 1; min-width: 300px;">
+                    <table class="modal-vehicle__data-table">
+                        ${columna1.map(item => `
+                            <tr>
+                                <td class="modal-vehicle__data-label">${item.label}</td>
+                                <td class="modal-vehicle__data-value">${item.value}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
+                <div style="flex: 1; min-width: 300px;">
+                    <table class="modal-vehicle__data-table">
+                        ${columna2.map(item => `
+                            <tr>
+                                <td class="modal-vehicle__data-label">${item.label}</td>
+                                <td class="modal-vehicle__data-value">${item.value}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
             `;
-        } else {
-            previewDiv.innerHTML = '<div style="color: #999; font-size: 12px; text-align: center;">No hay foto</div>';
+            
+            // Insertar contenido
+            document.getElementById('detalleConductor').innerHTML = html;
+            
+            // Ocultar sección de historial
+            document.getElementById('historialContent').style.display = 'none';
+            
+        }, 500);
+    }
+    
+    // Función para editar conductor - CORREGIDA
+    function editarConductor(conductor = null) {
+        if (!conductor && currentConductor) {
+            conductor = currentConductor;
         }
         
-        cerrarModal('modalVer');
-        abrirModal('modalEditar');
-    } else {
-        // Si no hay conductor, abrir modal de agregar
-        cerrarModal('modalVer');
-        abrirModal('modalAgregar');
+        if (conductor) {
+            document.getElementById('editar_id').value = conductor.id;
+            document.getElementById('editar_fecha').value = conductor.fecha;
+            document.getElementById('editar_nombre').value = conductor.nombre;
+            document.getElementById('editar_direccion').value = conductor.direccion || '';
+            document.getElementById('editar_telefono').value = conductor.telefono;
+            document.getElementById('editar_dip').value = conductor.dip;
+            document.getElementById('editar_ingreso_obligatorio').value = conductor.ingreso_obligatorio;
+            document.getElementById('editar_ingreso_libre').value = conductor.ingreso_libre;
+            document.getElementById('editar_dias_por_ciclo').value = conductor.dias_por_ciclo;
+            document.getElementById('editar_salario_mensual').value = conductor.salario_mensual;
+            document.getElementById('imagen_actual').value = conductor.imagen || '';
+            
+            // Configurar el select de vehículos - CORRECCIÓN IMPORTANTE
+            const selectVehiculo = document.getElementById('editar_vehiculo_id');
+            
+            // Limpiar opciones existentes
+            selectVehiculo.innerHTML = '<option value="">Seleccione un vehículo</option>';
+            
+            // Agregar vehículos disponibles
+            <?php foreach ($todosVehiculos as $vehiculo): ?>
+                const option = document.createElement('option');
+                option.value = '<?= $vehiculo['id'] ?>';
+                option.textContent = '<?= htmlspecialchars($vehiculo['marca']) ?> <?= htmlspecialchars($vehiculo['modelo']) ?> - <?= htmlspecialchars($vehiculo['matricula']) ?>';
+                selectVehiculo.appendChild(option);
+            <?php endforeach; ?>
+            
+            // Seleccionar el vehículo actual del conductor
+            if (conductor.vehiculo_id) {
+                selectVehiculo.value = conductor.vehiculo_id;
+            }
+            
+            // Mostrar imagen actual
+            const previewDiv = document.getElementById('current_image');
+            if (conductor.imagen) {
+                previewDiv.innerHTML = `
+                    <img src="../../imagenes/conductores/${conductor.imagen}" 
+                         class="modal-vehicle__preview-image"
+                         style="max-width: 100px; max-height: 80px;"
+                         loading="lazy">
+                    <div style="font-size: 12px; color: #666; text-align: center; margin-top: 5px;">Foto actual</div>
+                `;
+            } else {
+                previewDiv.innerHTML = '<div style="color: #999; font-size: 12px; text-align: center;">No hay foto</div>';
+            }
+            
+            cerrarModal('modalVer');
+            abrirModal('modalEditar');
+        } else {
+            // Si no hay conductor, abrir modal de agregar
+            cerrarModal('modalVer');
+            abrirModal('modalAgregar');
+        }
     }
-}
     
     // Función para mostrar historial
     function mostrarHistorial(tipo) {
@@ -1834,11 +1843,7 @@ function editarConductor(conductor = null) {
             historialContent.scrollIntoView({ behavior: 'smooth' });
         }, 100);
     }
-    document.querySelectorAll('.no-decimal').forEach(input => {
-    input.addEventListener('input', function() {
-        this.value = this.value.replace(/[^0-9]/g, '');
-    });
-});
+    
     // Confirmar eliminación
     function confirmarEliminacion() {
         return confirm('¿Estás seguro de que deseas eliminar este conductor?');

@@ -1,18 +1,7 @@
 <?php
-    // Incluir archivo de conexión
-    include __DIR__ . '/../config/database.php';
+    // Ruta del logo
     $logoPath = '/taxis/assets/logo.png';
-
-    // Consultar el saldo de la caja predeterminada
-    $query = "SELECT saldo_actual FROM cajas WHERE predeterminada = 1 LIMIT 1";
-    $stmt = $pdo->prepare($query);
-    $stmt->execute();
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    // Si encontramos el saldo, lo asignamos a una variable
-    $saldoCaja = $result ? $result['saldo_actual'] : 0; // Si no hay saldo, asignamos 0
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -21,6 +10,7 @@
     <title>Flota Taxis</title>
     <link rel="stylesheet" href="/taxis/styles/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
 </head>
 <body>
 
@@ -35,7 +25,7 @@
                 <a href="/taxis/index.php"><i class="fas fa-home"></i> Inicio</a>
             </li>
             <li>
-                <a href="/taxis/modules/vehiculos/flota.php"><i class="fas fa-car-side"></i> Flota</a>
+                <a href="/taxis/modules/flota.php"><i class="fas fa-car-side"></i> Flota</a>
                 <ul class="submenu">
                     <li><a href="/taxis/modules/vehiculos/vehiculos.php"><i class="fas fa-truck"></i> Vehículos</a></li>
                     <li><a href="/taxis/modules/conductores/conductores.php"><i class="fas fa-user-tie"></i> Conductores</a></li>
@@ -44,22 +34,26 @@
             <li>
                 <a href="#"><i class="fas fa-tools"></i> Taller</a>
                 <ul class="submenu">
-                    <li><a href="/taxis/modules/almacen/productos.php"><i class="fas fa-box"></i> Repuestos</a></li>
-                    <li><a href="/taxis/modules/mantenimientos/mantenimientos.php"><i class="fas fa-wrench"></i> Mantenimientos</a></li>
+                    <li><a href="/taxis/modules/almacen/productos.php"><i class="fas fa-box"></i> Almacén</a></li>
+                    <li><a href="#"><i class="fas fa-wrench"></i> Mantenimientos</a></li>
+                    <li><a href="#"><i class="fas fa-exclamation-triangle"></i> Averías</a></li>
                 </ul>
             </li>
             <li>
-                <a href="/taxis/modules/ingresos/ingresos.php"><i class="fas fa-arrow-down"></i> Ingresos</a>
+                <a href="#"><i class="fas fa-cash-register"></i> Caja</a>
                 <ul class="submenu">
+                    <li><a href="/taxis/modules/ingresos/ingresos.php"><i class="fas fa-arrow-down"></i> Ingresos</a></li>
                     <li><a href="#"><i class="fas fa-arrow-up"></i> Entradas</a></li>
-                    <li><a href="#"><i class="fas fa-exchange"></i> Traspasos</a></li>                    
+                    <li><a href="#"><i class="fas fa-exchange"></i> Traspasos</a></li>
+                    <li><a href="#"><i class="fas fa-file-invoice-dollar"></i> Gastos</a></li>
+                    <li><a href="#"><i class="fas fa-bank"></i> Cuentas</a></li>
                 </ul>
             </li>
             <li>
-                <a href="/taxis/modules/gestion/gestion.php"><i class="fas fa-file-invoice-dollar"></i> Gastos</a>
+                <a href="#"><i class="fas fa-wallet"></i> Nóminas</a>
                 <ul class="submenu">
                     <li><a href="#"><i class="fas fa-money-bill"></i> Salarios</a></li>
-                    <li><a href="/taxis/modules/deudas/deudas.php"><i class="fas fa-hand-holding-usd"></i> Deudas</a></li>
+                    <li><a href="#"><i class="fas fa-hand-holding-usd"></i> Préstamos</a></li>
                 </ul>
             </li>
             <li>
@@ -67,13 +61,6 @@
                 <ul class="submenu">
                     <li><a href="#"><i class="fas fa-user-cog"></i> Usuarios</a></li>
                     <li><a href="#"><i class="fas fa-print"></i> Impresos</a></li>
-                </ul>
-            </li>
-            <!-- Agregamos el ícono de monedero y el saldo de la caja predeterminada -->
-            <li>
-                <a href="#"><i class="fas fa-wallet"></i> Caja: <strong><?php echo   number_format($saldoCaja,0 , '.', '.') . '  FCFA'; ?></strong></a>
-                <ul class="submenu">
-                    <li><a href="#"><i class="fas fa-bank"></i> Cuentas</a></li>
                 </ul>
             </li>
         </ul>

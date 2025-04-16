@@ -3,27 +3,6 @@
 include '../../layout/header.php';
 require '../../config/database.php';
 
-// ===== MEJORAS DE SEGURIDAD ===== //
-session_start();
-
-function generarTokenCSRF() {
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-    return $_SESSION['csrf_token'];
-}
-
-function validarEntrada($dato) {
-    return htmlspecialchars(strip_tags(trim($dato)));
-}
-
-if (isset($_POST['accion'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die("Token CSRF inválido");
-    }
-}
-// ===== FIN MEJORAS DE SEGURIDAD ===== //
-
 // Configuración de imágenes
 $uploadDir = '../../imagenes/vehiculos/';
 if (!file_exists($uploadDir)) {
@@ -37,20 +16,11 @@ if (isset($_POST['accion'])) {
     $accion = $_POST['accion'];
 
     if ($accion == 'agregar') {
-        // Insertar vehículo con datos validados
-        $stmt = $pdo->prepare("INSERT INTO vehiculos 
-            (marca, modelo, year, matricula, numero, km_inicial, km_actual, km_aceite, fecha) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        // Agregar nuevo vehículo
+        $stmt = $pdo->prepare("INSERT INTO vehiculos (marca, modelo, matricula, numero, km_inicial, km_actual, km_aceite) VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
-            validarEntrada($_POST['marca']),
-            validarEntrada($_POST['modelo']),
-            validarEntrada($_POST['year']),
-            validarEntrada($_POST['matricula']),
-            validarEntrada($_POST['numero']),
-            validarEntrada($_POST['km_inicial']),
-            validarEntrada($_POST['km_actual']),
-            validarEntrada($_POST['km_aceite']),
-            date('Y-m-d')
+            $_POST['marca'], $_POST['modelo'], $_POST['matricula'],
+            $_POST['numero'], $_POST['km_inicial'], $_POST['km_actual'], $_POST['km_aceite']
         ]);
         
         // Obtener el ID del vehículo recién insertado
@@ -85,6 +55,7 @@ if (isset($_POST['accion'])) {
         exit;
 
     } elseif ($accion == 'eliminar') {
+        // Eliminar vehículo si no está asignado a un conductor
         $id = $_POST['id'];
         
         // Primero eliminar las imágenes asociadas
@@ -152,19 +123,13 @@ if (isset($_POST['accion'])) {
         }
         
         // Actualizar campos básicos
-        $stmt = $pdo->prepare("UPDATE vehiculos SET marca=?, modelo=?, year=?, matricula=?, numero=?, km_inicial=?, km_actual=?, km_aceite=?" . 
+        $stmt = $pdo->prepare("UPDATE vehiculos SET marca=?, modelo=?, matricula=?, numero=?, km_inicial=?, km_actual=?, km_aceite=?" . 
                              (!empty($updateFields) ? ", " . implode(', ', $updateFields) : "") . 
                              " WHERE id=?");
         
         $params = [
-            validarEntrada($_POST['marca']),
-            validarEntrada($_POST['modelo']),
-            validarEntrada($_POST['year']),
-            validarEntrada($_POST['matricula']),
-            validarEntrada($_POST['numero']),
-            validarEntrada($_POST['km_inicial']),
-            validarEntrada($_POST['km_actual']),
-            validarEntrada($_POST['km_aceite'])
+            $_POST['marca'], $_POST['modelo'], $_POST['matricula'], $_POST['numero'],
+            $_POST['km_inicial'], $_POST['km_actual'], $_POST['km_aceite']
         ];
         
         if (!empty($updateValues)) {
@@ -184,12 +149,10 @@ $vehiculos = $pdo->query("
     SELECT v.*, c.nombre AS conductor_nombre 
     FROM vehiculos v 
     LEFT JOIN conductores c ON v.id = c.vehiculo_id
-    ORDER BY v.fecha DESC
 ")->fetchAll();
 
-// Obtener marcas y modelos para filtros
+// Obtener marcas para filtro
 $marcas = $pdo->query("SELECT DISTINCT marca FROM vehiculos ORDER BY marca")->fetchAll();
-$modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -219,7 +182,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     }
     
     .container {
-        max-width: 1250px;
+        width: 1250px;
         margin: 20px auto;
         background: #fff;
         padding: 25px;
@@ -281,12 +244,6 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         background-color: #ffebee !important; /* Fondo rojo claro */
         font-weight: bold;
         color:rgb(235, 13, 46)
-    }
-    
-    .alerta-proximo {
-        background-color: #fff3e0 !important; /* Fondo naranja claro */
-        font-weight: bold;
-        color: #e65100;
     }
     
     /* ============ BOTONES ============ */
@@ -786,28 +743,18 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         <!-- Controles de tabla -->
         <div class="table-controls">
             <input type="text" id="searchInput" placeholder="Buscar vehículo..." class="modal-vehicle__form-input">
-            
             <select id="filterMarca" class="modal-vehicle__form-input">
                 <option value="">Todas las marcas</option>
                 <?php foreach ($marcas as $marca): ?>
                     <option value="<?= htmlspecialchars($marca['marca']) ?>"><?= htmlspecialchars($marca['marca']) ?></option>
                 <?php endforeach; ?>
             </select>
-            
-            <select id="filterModelo" class="modal-vehicle__form-input">
-                <option value="">Todos los modelos</option>
-                <?php foreach ($modelos as $modelo): ?>
-                    <option value="<?= htmlspecialchars($modelo['modelo']) ?>"><?= htmlspecialchars($modelo['modelo']) ?></option>
-                <?php endforeach; ?>
-            </select>
-            
             <select id="filterMantenimiento" class="modal-vehicle__form-input">
                 <option value="">Todos los estados</option>
                 <option value="proximo">Próximo a mantenimiento</option>
                 <option value="urgente">Mantenimiento urgente</option>
                 <option value="ok">Mantenimiento al día</option>
             </select>
-            
             <button id="openModalAgregar" class="btn btn-nuevo">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -827,6 +774,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                         <th>Modelo</th>
                         <th>Matrícula</th>
                         <th>Número</th>
+                        <!--<th>Km Inicial</th>-->
                         <th>Km Actual</th>
                         <th>Próx. Mantenimiento</th>
                         <th>Conductor</th>
@@ -837,26 +785,17 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                     <?php foreach ($vehiculos as $vehiculo): ?>
                         <?php
                             $diferencia_km = $vehiculo['km_aceite'] - $vehiculo['km_actual'];
-                            $clase_alerta = '';
-                            $estado_mantenimiento = 'ok';
-                            
-                            if ($diferencia_km <= 0) {
-                                $clase_alerta = 'alerta-mantenimiento';
-                                $estado_mantenimiento = 'urgente';
-                            } elseif ($diferencia_km <= 500) {
-                                $clase_alerta = 'alerta-proximo';
-                                $estado_mantenimiento = 'proximo';
-                            }
+                            $clase_alerta = ($diferencia_km <= 500) ? 'alerta-mantenimiento' : '';
                         ?>
                         <tr class="<?= $clase_alerta ?>" 
                             data-marca="<?= htmlspecialchars($vehiculo['marca']) ?>"
-                            data-modelo="<?= htmlspecialchars($vehiculo['modelo']) ?>"
-                            data-mantenimiento="<?= $estado_mantenimiento ?>">
+                            data-mantenimiento="<?= $diferencia_km <= 0 ? 'urgente' : ($diferencia_km <= 500 ? 'proximo' : 'ok') ?>">
                             <td><?= $vehiculo['id'] ?></td>
                             <td><?= htmlspecialchars($vehiculo['marca']) ?></td>
                             <td><?= htmlspecialchars($vehiculo['modelo']) ?></td>
                             <td><?= htmlspecialchars($vehiculo['matricula']) ?></td>
                             <td><?= htmlspecialchars($vehiculo['numero']) ?></td>
+                            <!--<td><?= number_format($vehiculo['km_inicial'], 0, ',', '.') ?> km</td>-->
                             <td><?= number_format($vehiculo['km_actual'], 0, ',', '.') ?> km</td>
                             <td><?= number_format($vehiculo['km_aceite'], 0, ',', '.') ?> km</td>
                             <td><?= $vehiculo['conductor_nombre'] ?? 'No asignado' ?></td>
@@ -877,7 +816,6 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                                     <form method="post" style="display:inline;" onsubmit="return confirmarEliminacion();">
                                         <input type="hidden" name="id" value="<?= $vehiculo['id'] ?>">
                                         <input type="hidden" name="accion" value="eliminar">
-                                        <input type="hidden" name="csrf_token" value="<?= generarTokenCSRF() ?>">
                                         <button type="submit" class="btn btn-eliminar">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                                 <polyline points="3 6 5 6 21 6"></polyline>
@@ -935,55 +873,43 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             
             <div class="modal-vehicle__body">
                 <form method="post" enctype="multipart/form-data" class="modal-vehicle__form" id="modalAgregarForm">
-                    <input type="hidden" name="csrf_token" value="<?= generarTokenCSRF() ?>">
-                    <input type="hidden" name="accion" value="agregar">
+                    <div class="modal-vehicle__form-group">
+                        <label for="marca" class="modal-vehicle__form-label">Marca</label>
+                        <input type="text" name="marca" class="modal-vehicle__form-input" placeholder="Marca" required>
+                    </div>
                     
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="marca" class="modal-vehicle__form-label">Marca</label>
-                            <input type="text" name="marca" id="marca" class="modal-vehicle__form-input" placeholder="Marca" required>
-                        </div>
-                        
-                        <div class="modal-vehicle__form-group">
-                            <label for="modelo" class="modal-vehicle__form-label">Modelo</label>
-                            <input type="text" name="modelo" id="modelo" class="modal-vehicle__form-input" placeholder="Modelo" required>
-                        </div>
+                    <div class="modal-vehicle__form-group">
+                        <label for="modelo" class="modal-vehicle__form-label">Modelo</label>
+                        <input type="text" name="modelo" class="modal-vehicle__form-input" placeholder="Modelo" required>
                     </div>
                     
                     <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="year" class="modal-vehicle__form-label">Año</label>
-                            <input type="number" name="year" id="year" class="modal-vehicle__form-input" placeholder="Año" min="1900" max="<?= date('Y') + 1 ?>" required>
-                        </div>
-                        
                         <div class="modal-vehicle__form-group">
                             <label for="matricula" class="modal-vehicle__form-label">Matrícula</label>
-                            <input type="text" name="matricula" id="matricula" class="modal-vehicle__form-input" placeholder="Matrícula" required>
+                            <input type="text" name="matricula" class="modal-vehicle__form-input" placeholder="Matrícula" required>
                         </div>
-                    </div>
-                    
-                    <div class="modal-vehicle__form-row">
+                        
                         <div class="modal-vehicle__form-group">
                             <label for="numero" class="modal-vehicle__form-label">Número</label>
-                            <input type="text" name="numero" id="numero" class="modal-vehicle__form-input" placeholder="Número" required>
-                        </div>
-                        
-                        <div class="modal-vehicle__form-group">
-                            <label for="km_inicial" class="modal-vehicle__form-label">Km Inicial</label>
-                            <input type="number" name="km_inicial" id="km_inicial" class="modal-vehicle__form-input" placeholder="Km Inicial" min="0" required>
+                            <input type="text" name="numero" class="modal-vehicle__form-input" placeholder="Número" required>
                         </div>
                     </div>
                     
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
-                            <label for="km_actual" class="modal-vehicle__form-label">Km Actual</label>
-                            <input type="number" name="km_actual" id="km_actual" class="modal-vehicle__form-input" placeholder="Km Actual" min="0" required>
+                            <label for="km_inicial" class="modal-vehicle__form-label">Km Inicial</label>
+                            <input type="number" name="km_inicial" class="modal-vehicle__form-input" placeholder="Km Inicial" required>
                         </div>
                         
                         <div class="modal-vehicle__form-group">
-                            <label for="km_aceite" class="modal-vehicle__form-label">Próximo Mantenimiento (km)</label>
-                            <input type="number" name="km_aceite" id="km_aceite" class="modal-vehicle__form-input" placeholder="Km para mantenimiento" min="0" required>
+                            <label for="km_actual" class="modal-vehicle__form-label">Km Actual</label>
+                            <input type="number" name="km_actual" class="modal-vehicle__form-input" placeholder="Km Actual" required>
                         </div>
+                    </div>
+                    
+                    <div class="modal-vehicle__form-group">
+                        <label for="km_aceite" class="modal-vehicle__form-label">Km Próximo Mantenimiento</label>
+                        <input type="number" name="km_aceite" class="modal-vehicle__form-input" placeholder="Km Mantenimiento" required>
                     </div>
                     
                     <div class="modal-vehicle__form-group">
@@ -1011,7 +937,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                     </svg>
                     Cancelar
                 </button>
-                <button type="submit" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalAgregarForm">
+                <button type="submit" name="accion" value="agregar" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalAgregarForm">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
@@ -1054,6 +980,16 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             </div>
             
             <div class="modal-vehicle__footer">
+                <button class="modal-vehicle__action-btn" onclick="mostrarHistorial('mantenimiento')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    Historial de Mantenimiento
+                </button>
                 <button class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" onclick="editarVehiculo()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -1083,55 +1019,44 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             <div class="modal-vehicle__body">
                 <form method="post" enctype="multipart/form-data" class="modal-vehicle__form" id="modalEditarForm">
                     <input type="hidden" id="editar_id" name="id">
-                    <input type="hidden" name="csrf_token" value="<?= generarTokenCSRF() ?>">
-                    <input type="hidden" name="accion" value="editar">
                     
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_marca" class="modal-vehicle__form-label">Marca</label>
-                            <input type="text" id="editar_marca" name="marca" class="modal-vehicle__form-input" required>
-                        </div>
-                        
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_modelo" class="modal-vehicle__form-label">Modelo</label>
-                            <input type="text" id="editar_modelo" name="modelo" class="modal-vehicle__form-input" required>
-                        </div>
+                    <div class="modal-vehicle__form-group">
+                        <label for="editar_marca" class="modal-vehicle__form-label">Marca</label>
+                        <input type="text" id="editar_marca" name="marca" class="modal-vehicle__form-input" required>
+                    </div>
+                    
+                    <div class="modal-vehicle__form-group">
+                        <label for="editar_modelo" class="modal-vehicle__form-label">Modelo</label>
+                        <input type="text" id="editar_modelo" name="modelo" class="modal-vehicle__form-input" required>
                     </div>
                     
                     <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_year" class="modal-vehicle__form-label">Año</label>
-                            <input type="number" id="editar_year" name="year" class="modal-vehicle__form-input" min="1900" max="<?= date('Y') + 1 ?>" required>
-                        </div>
-                        
                         <div class="modal-vehicle__form-group">
                             <label for="editar_matricula" class="modal-vehicle__form-label">Matrícula</label>
                             <input type="text" id="editar_matricula" name="matricula" class="modal-vehicle__form-input" required>
                         </div>
-                    </div>
-                    
-                    <div class="modal-vehicle__form-row">
+                        
                         <div class="modal-vehicle__form-group">
                             <label for="editar_numero" class="modal-vehicle__form-label">Número</label>
                             <input type="text" id="editar_numero" name="numero" class="modal-vehicle__form-input" required>
                         </div>
-                        
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_km_inicial" class="modal-vehicle__form-label">Km Inicial</label>
-                            <input type="number" id="editar_km_inicial" name="km_inicial" class="modal-vehicle__form-input" min="0" required>
-                        </div>
                     </div>
                     
                     <div class="modal-vehicle__form-row">
                         <div class="modal-vehicle__form-group">
-                            <label for="editar_km_actual" class="modal-vehicle__form-label">Km Actual</label>
-                            <input type="number" id="editar_km_actual" name="km_actual" class="modal-vehicle__form-input" min="0" required>
+                            <label for="editar_km_inicial" class="modal-vehicle__form-label">Km Inicial</label>
+                            <input type="number" id="editar_km_inicial" name="km_inicial" class="modal-vehicle__form-input" required>
                         </div>
                         
                         <div class="modal-vehicle__form-group">
-                            <label for="editar_km_aceite" class="modal-vehicle__form-label">Próximo Mantenimiento (km)</label>
-                            <input type="number" id="editar_km_aceite" name="km_aceite" class="modal-vehicle__form-input" min="0" required>
+                            <label for="editar_km_actual" class="modal-vehicle__form-label">Km Actual</label>
+                            <input type="number" id="editar_km_actual" name="km_actual" class="modal-vehicle__form-input" required>
                         </div>
+                    </div>
+                    
+                    <div class="modal-vehicle__form-group">
+                        <label for="editar_km_aceite" class="modal-vehicle__form-label">Km Próximo Mantenimiento</label>
+                        <input type="number" id="editar_km_aceite" name="km_aceite" class="modal-vehicle__form-input" required>
                     </div>
                     
                     <div class="modal-vehicle__form-group">
@@ -1161,7 +1086,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                     </svg>
                     Cancelar
                 </button>
-                <button type="submit" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalEditarForm">
+                <button type="submit" name="accion" value="editar" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalEditarForm">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -1220,11 +1145,6 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         
         // Filtros
         document.getElementById('filterMarca').addEventListener('change', function() {
-            currentPage = 1;
-            updateTable();
-        });
-        
-        document.getElementById('filterModelo').addEventListener('change', function() {
             currentPage = 1;
             updateTable();
         });
@@ -1302,7 +1222,6 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     function updateTable() {
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
         const marcaFilter = document.getElementById('filterMarca').value;
-        const modeloFilter = document.getElementById('filterModelo').value;
         const mantenimientoFilter = document.getElementById('filterMantenimiento').value;
         
         const rows = document.querySelectorAll('#tableBody tr');
@@ -1310,16 +1229,14 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         
         rows.forEach(row => {
             const marca = row.getAttribute('data-marca');
-            const modelo = row.getAttribute('data-modelo');
             const mantenimiento = row.getAttribute('data-mantenimiento');
             const texto = row.textContent.toLowerCase();
             
             const matchesSearch = texto.includes(searchTerm);
             const matchesMarca = !marcaFilter || marca === marcaFilter;
-            const matchesModelo = !modeloFilter || modelo === modeloFilter;
             const matchesMantenimiento = !mantenimientoFilter || mantenimiento === mantenimientoFilter;
             
-            if (matchesSearch && matchesMarca && matchesModelo && matchesMantenimiento) {
+            if (matchesSearch && matchesMarca && matchesMantenimiento) {
                 filteredData.push(row);
                 row.style.display = '';
             } else {
@@ -1442,17 +1359,17 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         const columna1 = [
             { label: 'MARCA', value: vehiculo.marca || 'N/A' },
             { label: 'MODELO', value: vehiculo.modelo || 'N/A' },
-            { label: 'AÑO', value: vehiculo.year || 'N/A' },
             { label: 'MATRÍCULA', value: vehiculo.matricula || 'N/A' },
-            { label: 'NÚMERO', value: vehiculo.numero || 'N/A' }
+            { label: 'NÚMERO', value: vehiculo.numero || 'N/A' },
+            { label: 'KILOMETRAJE INICIAL', value: (vehiculo.km_inicial || '0') + ' km' }
         ];
         
         const columna2 = [
-            { label: 'KILOMETRAJE INICIAL', value: (vehiculo.km_inicial || '0') + ' km' },
             { label: 'KILOMETRAJE ACTUAL', value: (vehiculo.km_actual || '0') + ' km' },
             { label: 'PRÓXIMO MANTENIMIENTO', value: (vehiculo.km_aceite || '0') + ' km' },
-            //{ label: 'ESTADO', value: estado },
-            //{ label: 'CONDUCTOR ASIGNADO', value: vehiculo.conductor_nombre || 'No asignado' }
+            { label: 'ESTADO', value: estado },
+            { label: 'CONDUCTOR ASIGNADO', value: vehiculo.conductor_nombre || 'No asignado' },
+            { label: 'OBSERVACIONES', value: vehiculo.observaciones || 'Ninguna' }
         ];
         
         // Generar HTML para las tablas
@@ -1539,7 +1456,6 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             document.getElementById('editar_id').value = vehiculo.id;
             document.getElementById('editar_marca').value = vehiculo.marca;
             document.getElementById('editar_modelo').value = vehiculo.modelo;
-            document.getElementById('editar_year').value = vehiculo.year;
             document.getElementById('editar_matricula').value = vehiculo.matricula;
             document.getElementById('editar_numero').value = vehiculo.numero;
             document.getElementById('editar_km_inicial').value = vehiculo.km_inicial;
@@ -1572,6 +1488,14 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             cerrarModal('modalVer');
             abrirModal('modalAgregar');
         }
+    }
+    
+    // Función para mostrar historial
+    function mostrarHistorial(tipo) {
+        if (!currentVehiculo) return;
+        
+        alert(`Mostrar historial de ${tipo} para el vehículo ${currentVehiculo.matricula}`);
+        // Aquí puedes implementar la lógica para cargar y mostrar el historial
     }
     
     // Confirmar eliminación

@@ -1,0 +1,96 @@
+/* Fondo semitransparente del modal */
+.modal {
+    display: none; 
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5); /* oscurece el fondo */
+    backdrop-filter: blur(3px); /* difumina el fondo */
+  }
+  
+  /* Contenedor del modal */
+  .modal-contenido {
+    background-color: #fff;
+    margin: 5% auto;
+    padding: 30px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  /* Animación suave al abrir */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* Título del modal */
+  .modal-contenido h2 {
+    font-size: 22px;
+    margin-bottom: 20px;
+    text-align: center;
+    color: #333;
+  }
+  
+  /* Estilo del formulario */
+  .modal-contenido form label {
+    display: block;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    color: #444;
+    font-weight: 600;
+  }
+  
+  .modal-contenido form input[type="text"],
+  .modal-contenido form input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    font-size: 16px;
+    transition: border-color 0.2s;
+  }
+  
+  .modal-contenido form input:focus {
+    border-color: #007BFF;
+    outline: none;
+  }
+  
+  /* Botón de acción */
+  .modal-contenido button[type="submit"] {
+    margin-top: 20px;
+    width: 100%;
+    background-color: #007BFF;
+    color: white;
+    padding: 12px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .modal-contenido button[type="submit"]:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Botón de cerrar */
+  .cerrar-modal {
+    float: right;
+    font-size: 22px;
+    font-weight: bold;
+    color: #aaa;
+    cursor: pointer;
+  }
+  
+  .cerrar-modal:hover {
+    color: #000;
+  }
+  

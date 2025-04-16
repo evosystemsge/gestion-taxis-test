@@ -3,29 +3,8 @@
 include '../../layout/header.php';
 require '../../config/database.php';
 
-// ===== MEJORAS DE SEGURIDAD ===== //
-session_start();
-
-function generarTokenCSRF() {
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-    return $_SESSION['csrf_token'];
-}
-
-function validarEntrada($dato) {
-    return htmlspecialchars(strip_tags(trim($dato)));
-}
-
-if (isset($_POST['accion'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        die("Token CSRF inválido");
-    }
-}
-// ===== FIN MEJORAS DE SEGURIDAD ===== //
-
 // Configuración de imágenes
-$uploadDir = '../../imagenes/vehiculos/';
+$uploadDir = '../../imagenes/productos/';
 if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0777, true);
 }
@@ -37,24 +16,16 @@ if (isset($_POST['accion'])) {
     $accion = $_POST['accion'];
 
     if ($accion == 'agregar') {
-        // Insertar vehículo con datos validados
-        $stmt = $pdo->prepare("INSERT INTO vehiculos 
-            (marca, modelo, year, matricula, numero, km_inicial, km_actual, km_aceite, fecha) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        // Agregar nuevo producto
+        $stmt = $pdo->prepare("INSERT INTO productos (referencia, codigo_barras, nombre, descripcion, stock, stock_minimo, precio, categoria_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
-            validarEntrada($_POST['marca']),
-            validarEntrada($_POST['modelo']),
-            validarEntrada($_POST['year']),
-            validarEntrada($_POST['matricula']),
-            validarEntrada($_POST['numero']),
-            validarEntrada($_POST['km_inicial']),
-            validarEntrada($_POST['km_actual']),
-            validarEntrada($_POST['km_aceite']),
-            date('Y-m-d')
+            $_POST['referencia'], $_POST['codigo_barras'], $_POST['nombre'], 
+            $_POST['descripcion'], $_POST['stock'], $_POST['stock_minimo'], 
+            $_POST['precio'], $_POST['categoria_id']
         ]);
         
-        // Obtener el ID del vehículo recién insertado
-        $vehiculoId = $pdo->lastInsertId();
+        // Obtener el ID del producto recién insertado
+        $productoId = $pdo->lastInsertId();
         
         // Procesar cada imagen
         $updateFields = [];
@@ -73,48 +44,43 @@ if (isset($_POST['accion'])) {
             }
         }
         
-        // Actualizar el vehículo con las rutas de las imágenes
+        // Actualizar el producto con las rutas de las imágenes
         if (!empty($updateFields)) {
-            $sql = "UPDATE vehiculos SET " . implode(', ', $updateFields) . " WHERE id = ?";
-            $updateValues[] = $vehiculoId;
+            $sql = "UPDATE productos SET " . implode(', ', $updateFields) . " WHERE id = ?";
+            $updateValues[] = $productoId;
             $stmt = $pdo->prepare($sql);
             $stmt->execute($updateValues);
         }
         
-        header("Location: vehiculos.php");
+        header("Location: productos.php");
         exit;
 
     } elseif ($accion == 'eliminar') {
+        // Eliminar producto
         $id = $_POST['id'];
         
         // Primero eliminar las imágenes asociadas
-        $stmt = $pdo->prepare("SELECT imagen1, imagen2, imagen3, imagen4 FROM vehiculos WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT imagen1, imagen2, imagen3, imagen4 FROM productos WHERE id = ?");
         $stmt->execute([$id]);
-        $vehiculo = $stmt->fetch();
+        $producto = $stmt->fetch();
         
         for ($i = 1; $i <= 4; $i++) {
             $imgField = "imagen$i";
-            if (!empty($vehiculo[$imgField])) {
-                $filePath = $uploadDir . $vehiculo[$imgField];
+            if (!empty($producto[$imgField])) {
+                $filePath = $uploadDir . $producto[$imgField];
                 if (file_exists($filePath)) {
                     unlink($filePath);
                 }
             }
         }
         
-        // Verificar si está asignado a un conductor
-        $stmt = $pdo->prepare("SELECT * FROM conductores WHERE vehiculo_id = ?");
+        // Eliminar el producto
+        $stmt = $pdo->prepare("DELETE FROM productos WHERE id = ?");
         $stmt->execute([$id]);
-        if ($stmt->rowCount() > 0) {
-            echo "<script>alert('Este vehículo está asignado a un conductor y no se puede eliminar hasta desvincularlo.'); window.location.href='vehiculos.php';</script>";
-        } else {
-            $stmt = $pdo->prepare("DELETE FROM vehiculos WHERE id = ?");
-            $stmt->execute([$id]);
-            echo "<script>alert('Vehículo eliminado correctamente.'); window.location.href='vehiculos.php';</script>";
-        }
+        echo "<script>alert('Producto eliminado correctamente.'); window.location.href='productos.php';</script>";
 
     } elseif ($accion == 'editar') {
-        $vehiculoId = $_POST['id'];
+        $productoId = $_POST['id'];
         
         // Procesar cada imagen
         $updateFields = [];
@@ -152,53 +118,47 @@ if (isset($_POST['accion'])) {
         }
         
         // Actualizar campos básicos
-        $stmt = $pdo->prepare("UPDATE vehiculos SET marca=?, modelo=?, year=?, matricula=?, numero=?, km_inicial=?, km_actual=?, km_aceite=?" . 
+        $stmt = $pdo->prepare("UPDATE productos SET referencia=?, codigo_barras=?, nombre=?, descripcion=?, stock=?, stock_minimo=?, precio=?, categoria_id=?" . 
                              (!empty($updateFields) ? ", " . implode(', ', $updateFields) : "") . 
                              " WHERE id=?");
         
         $params = [
-            validarEntrada($_POST['marca']),
-            validarEntrada($_POST['modelo']),
-            validarEntrada($_POST['year']),
-            validarEntrada($_POST['matricula']),
-            validarEntrada($_POST['numero']),
-            validarEntrada($_POST['km_inicial']),
-            validarEntrada($_POST['km_actual']),
-            validarEntrada($_POST['km_aceite'])
+            $_POST['referencia'], $_POST['codigo_barras'], $_POST['nombre'], 
+            $_POST['descripcion'], $_POST['stock'], $_POST['stock_minimo'], 
+            $_POST['precio'], $_POST['categoria_id']
         ];
         
         if (!empty($updateValues)) {
             $params = array_merge($params, $updateValues);
         }
         
-        $params[] = $vehiculoId;
+        $params[] = $productoId;
         
         $stmt->execute($params);
-        header("Location: vehiculos.php");
+        header("Location: productos.php");
         exit;
     }
 }
 
-// Obtener todos los vehículos con conductor asignado
-$vehiculos = $pdo->query("
-    SELECT v.*, c.nombre AS conductor_nombre 
-    FROM vehiculos v 
-    LEFT JOIN conductores c ON v.id = c.vehiculo_id
-    ORDER BY v.fecha DESC
+// Obtener todos los productos con información de categoría
+$productos = $pdo->query("
+    SELECT p.*, c.categoria 
+    FROM productos p
+    LEFT JOIN categorias c ON p.categoria_id = c.id
 ")->fetchAll();
 
-// Obtener marcas y modelos para filtros
-$marcas = $pdo->query("SELECT DISTINCT marca FROM vehiculos ORDER BY marca")->fetchAll();
-$modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")->fetchAll();
+// Obtener categorías para filtros y formularios
+$categorias = $pdo->query("SELECT id, categoria FROM categorias ORDER BY categoria")->fetchAll();
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Vehículos</title>
+    <title>Gestión de Productos</title>
     <style>
-    /* ============ ESTILOS PRINCIPALES (COPIADOS DE CONDUCTORES.PHP) ============ */
+    /* ESTILOS COPIADOS DE VEHICULOS.PHP */
     :root {
         --color-primario: #004b87;
         --color-secundario: #003366;
@@ -276,17 +236,11 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         background-color: rgba(0, 75, 135, 0.05);
     }
     
-    /* Estilo para vehículos que necesitan mantenimiento */
-    .alerta-mantenimiento {
-        background-color: #ffebee !important; /* Fondo rojo claro */
+    /* Estilo para productos con stock bajo */
+    .alerta-stock {
+        background-color: #ffebee !important;
         font-weight: bold;
         color:rgb(235, 13, 46)
-    }
-    
-    .alerta-proximo {
-        background-color: #fff3e0 !important; /* Fondo naranja claro */
-        font-weight: bold;
-        color: #e65100;
     }
     
     /* ============ BOTONES ============ */
@@ -385,7 +339,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     }
     
     /* ============ MODALES ============ */
-    .modal-vehicle {
+    .modal-product {
         display: none;
         position: fixed;
         z-index: 9999;
@@ -393,14 +347,14 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         font-family: 'Inter', sans-serif;
     }
     
-    .modal-vehicle__overlay {
+    .modal-product__overlay {
         position: absolute;
         inset: 0;
         background: rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(4px);
     }
     
-    .modal-vehicle__container {
+    .modal-product__container {
         position: relative;
         background: white;
         width: 800px;
@@ -420,7 +374,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         to { opacity: 1; transform: translateY(0); }
     }
     
-    .modal-vehicle__close {
+    .modal-product__close {
         position: absolute;
         top: 16px;
         right: 16px;
@@ -437,18 +391,18 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         z-index: 10;
     }
     
-    .modal-vehicle__close:hover {
+    .modal-product__close:hover {
         background: #f1f5f9;
         transform: rotate(90deg);
     }
     
-    .modal-vehicle__close svg {
+    .modal-product__close svg {
         width: 18px;
         height: 18px;
         color: #64748b;
     }
     
-    .modal-vehicle__header {
+    .modal-product__header {
         padding: 24px 24px 16px;
         border-bottom: 1px solid var(--color-borde);
         display: flex;
@@ -458,18 +412,18 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         gap: 10px;
     }
     
-    .modal-vehicle__header-content {
+    .modal-product__header-content {
         display: flex;
         align-items: center;
         gap: 15px;
         flex-wrap: wrap;
     }
     
-    .modal-vehicle__badge {
+    .modal-product__badge {
         margin-left: auto;
     }
     
-    .modal-vehicle__badge span {
+    .modal-product__badge span {
         display: inline-block;
         padding: 4px 20px;
         border-radius: 12px;
@@ -479,68 +433,68 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         color: white;
     }
     
-    .modal-vehicle__title {
+    .modal-product__title {
         font-size: 1.25rem;
         font-weight: 600;
         color: #1e293b;
         margin: 0;
     }
     
-    .modal-vehicle__title--highlight {
+    .modal-product__title--highlight {
         color: var(--color-primario);
         font-weight: 600;
     }
     
-    .modal-vehicle__body {
+    .modal-product__body {
         padding: 0 24px;
         overflow-y: auto;
         flex-grow: 1;
     }
     
-    .modal-vehicle__form {
+    .modal-product__form {
         display: flex;
         flex-direction: column;
         gap: 16px;
         padding: 16px 0;
     }
     
-    .modal-vehicle__form-group {
+    .modal-product__form-group {
         display: flex;
         flex-direction: column;
         gap: 6px;
     }
     
-    .modal-vehicle__form-row {
+    .modal-product__form-row {
         display: flex;
         gap: 16px;
     }
     
-    .modal-vehicle__form-row .modal-vehicle__form-group {
+    .modal-product__form-row .modal-product__form-group {
         flex: 1;
     }
     
-    .modal-vehicle__form-label {
+    .modal-product__form-label {
         font-size: 0.85rem;
         color: #64748b;
         font-weight: 600;
     }
     
-    .modal-vehicle__form-input {
+    .modal-product__form-input {
         padding: 10px 12px;
         border: 1px solid var(--color-borde);
         border-radius: 6px;
         font-size: 0.95rem;
         transition: border-color 0.2s ease;
-        width: 100%;
+        width: 90%;
     }
     
-    .modal-vehicle__form-input:focus {
+    .modal-product__form-input:focus {
         outline: none;
         border-color: var(--color-primario);
         box-shadow: 0 0 0 3px rgba(0, 75, 135, 0.1);
     }
     
-    .modal-vehicle__file-input {
+    .modal-product__file-input {
         padding: 8px;
         border: 1px solid var(--color-borde);
         border-radius: 6px;
@@ -548,7 +502,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         width: 100%;
     }
     
-    .modal-vehicle__image-preview {
+    .modal-product__image-preview {
         margin-top: 8px;
         min-height: 60px;
         display: flex;
@@ -558,14 +512,14 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         gap: 5px;
     }
     
-    .modal-vehicle__preview-image {
+    .modal-product__preview-image {
         max-width: 100%;
         max-height: 100px;
         border-radius: 4px;
         border: 1px solid var(--color-borde);
     }
     
-    .modal-vehicle__footer {
+    .modal-product__footer {
         padding: 16px 24px;
         border-top: 1px solid var(--color-borde);
         display: flex;
@@ -574,7 +528,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         flex-wrap: wrap;
     }
     
-    .modal-vehicle__action-btn {
+    .modal-product__action-btn {
         padding: 8px 16px;
         border-radius: 6px;
         font-size: 0.875rem;
@@ -589,29 +543,29 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         transition: all 0.2s ease;
     }
     
-    .modal-vehicle__action-btn:hover {
+    .modal-product__action-btn:hover {
         background: #f1f5f9;
         transform: none;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
     
-    .modal-vehicle__action-btn svg {
+    .modal-product__action-btn svg {
         width: 14px;
         height: 14px;
     }
     
-    .modal-vehicle__action-btn--primary {
+    .modal-product__action-btn--primary {
         background: var(--color-primario);
         border-color: var(--color-primario);
         color: white;
     }
     
-    .modal-vehicle__action-btn--primary:hover {
+    .modal-product__action-btn--primary:hover {
         background: var(--color-secundario);
     }
     
     /* ============ TABLA DE DETALLES ============ */
-    .modal-vehicle__data-table {
+    .modal-product__data-table {
         width: 100%;
         border-collapse: collapse;
         border: 1px solid var(--color-borde);
@@ -619,11 +573,11 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         overflow: hidden;
     }
     
-    .modal-vehicle__data-table tr:not(:last-child) {
+    .modal-product__data-table tr:not(:last-child) {
         border-bottom: 1px solid var(--color-borde);
     }
     
-    .modal-vehicle__data-label {
+    .modal-product__data-label {
         padding: 12px 16px;
         font-size: 0.85rem;
         color: #64748b;
@@ -636,7 +590,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         width: 40%;
     }
     
-    .modal-vehicle__data-value {
+    .modal-product__data-value {
         padding: 12px 16px;
         font-size: 1rem;
         color: #1e293b;
@@ -645,7 +599,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     }
     
     /* ============ CARRUSEL DE IMÁGENES ============ */
-    .vehicle-carousel {
+    .product-carousel {
         position: relative;
         width: 100%;
         height: 200px;
@@ -655,19 +609,19 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         background: #f1f5f9;
     }
     
-    .vehicle-carousel__images {
+    .product-carousel__images {
         display: flex;
         height: 100%;
         transition: transform 0.3s ease;
     }
     
-    .vehicle-carousel__image {
+    .product-carousel__image {
         min-width: 100%;
         height: 100%;
         object-fit: cover;
     }
     
-    .vehicle-carousel__nav {
+    .product-carousel__nav {
         position: absolute;
         top: 50%;
         transform: translateY(-50%);
@@ -678,7 +632,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         z-index: 2;
     }
     
-    .vehicle-carousel__btn {
+    .product-carousel__btn {
         width: 36px;
         height: 36px;
         border-radius: 50%;
@@ -691,17 +645,17 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     }
     
-    .vehicle-carousel__btn svg {
+    .product-carousel__btn svg {
         width: 20px;
         height: 20px;
         color: #1e293b;
     }
     
-    .vehicle-carousel__btn:hover {
+    .product-carousel__btn:hover {
         background: white;
     }
     
-    .vehicle-carousel__counter {
+    .product-carousel__counter {
         position: absolute;
         bottom: 10px;
         right: 10px;
@@ -749,12 +703,12 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             padding: 15px;
         }
         
-        .modal-vehicle__container {
+        .modal-product__container {
             max-width: 98%;
             max-height: 98vh;
         }
         
-        .modal-vehicle__form-row {
+        .modal-product__form-row {
             flex-direction: column;
             gap: 16px;
         }
@@ -764,16 +718,16 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             max-width: 100%;
         }
         
-        .modal-vehicle__footer {
+        .modal-product__footer {
             flex-direction: column;
         }
         
-        .modal-vehicle__action-btn {
+        .modal-product__action-btn {
             width: 100%;
             justify-content: center;
         }
         
-        .vehicle-carousel {
+        .product-carousel {
             height: 150px;
         }
     }
@@ -781,103 +735,93 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
 </head>
 <body>
     <div class="container">
-        <h2>Lista de Vehículos</h2>
+        <h2>Lista de Productos</h2>
         
         <!-- Controles de tabla -->
         <div class="table-controls">
-            <input type="text" id="searchInput" placeholder="Buscar vehículo..." class="modal-vehicle__form-input">
-            
-            <select id="filterMarca" class="modal-vehicle__form-input">
-                <option value="">Todas las marcas</option>
-                <?php foreach ($marcas as $marca): ?>
-                    <option value="<?= htmlspecialchars($marca['marca']) ?>"><?= htmlspecialchars($marca['marca']) ?></option>
+            <input type="text" id="searchInput" placeholder="Buscar producto..." class="modal-product__form-input">
+            <select id="filterCategoria" class="modal-product__form-input">
+                <option value="">Todas las categorías</option>
+                <?php foreach ($categorias as $cat): ?>
+                    <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['categoria']) ?></option>
                 <?php endforeach; ?>
             </select>
-            
-            <select id="filterModelo" class="modal-vehicle__form-input">
-                <option value="">Todos los modelos</option>
-                <?php foreach ($modelos as $modelo): ?>
-                    <option value="<?= htmlspecialchars($modelo['modelo']) ?>"><?= htmlspecialchars($modelo['modelo']) ?></option>
-                <?php endforeach; ?>
-            </select>
-            
-            <select id="filterMantenimiento" class="modal-vehicle__form-input">
+            <select id="filterStock" class="modal-product__form-input">
                 <option value="">Todos los estados</option>
-                <option value="proximo">Próximo a mantenimiento</option>
-                <option value="urgente">Mantenimiento urgente</option>
-                <option value="ok">Mantenimiento al día</option>
+                <option value="bajo">Stock bajo</option>
+                <option value="critico">Stock crítico</option>
+                <option value="ok">Stock suficiente</option>
             </select>
-            
+            <select id="filterPrecio" class="modal-product__form-input">
+                <option value="">Todos los precios</option>
+                <option value="0-100000">0 - 100.000 XAF</option>
+                <option value="100000-500000">100.000 - 500.000 XAF</option>
+                <option value="500000-1000000">500.000 - 1.000.000 XAF</option>
+                <option value="1000000">Más de 1.000.000 XAF</option>
+            </select>
             <button id="openModalAgregar" class="btn btn-nuevo">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
-                Nuevo Vehículo
+                Nuevo Producto
             </button>
         </div>
         
-        <!-- Tabla de vehículos -->
+        <!-- Tabla de productos -->
         <div class="table-container">
             <table class="table">
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>Marca</th>
-                        <th>Modelo</th>
-                        <th>Matrícula</th>
-                        <th>Número</th>
-                        <th>Km Actual</th>
-                        <th>Próx. Mantenimiento</th>
-                        <th>Conductor</th>
+                        <th>Referencia</th>
+                        <th>Nombre</th>
+                        <th>Descripción</th>
+                        <th>Stock</th>
+                        <th>Precio</th>
+                        <th>Categoría</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
-                    <?php foreach ($vehiculos as $vehiculo): ?>
+                    <?php foreach ($productos as $prod): ?>
                         <?php
-                            $diferencia_km = $vehiculo['km_aceite'] - $vehiculo['km_actual'];
-                            $clase_alerta = '';
-                            $estado_mantenimiento = 'ok';
-                            
-                            if ($diferencia_km <= 0) {
-                                $clase_alerta = 'alerta-mantenimiento';
-                                $estado_mantenimiento = 'urgente';
-                            } elseif ($diferencia_km <= 500) {
-                                $clase_alerta = 'alerta-proximo';
-                                $estado_mantenimiento = 'proximo';
+                            $stockStatus = 'ok';
+                            if ($prod['stock'] <= $prod['stock_minimo']) {
+                                $stockStatus = ($prod['stock'] <= ($prod['stock_minimo'] * 0.5)) ? 'critico' : 'bajo';
+                                $clase_alerta = 'alerta-stock';
+                            } else {
+                                $clase_alerta = '';
                             }
                         ?>
                         <tr class="<?= $clase_alerta ?>" 
-                            data-marca="<?= htmlspecialchars($vehiculo['marca']) ?>"
-                            data-modelo="<?= htmlspecialchars($vehiculo['modelo']) ?>"
-                            data-mantenimiento="<?= $estado_mantenimiento ?>">
-                            <td><?= $vehiculo['id'] ?></td>
-                            <td><?= htmlspecialchars($vehiculo['marca']) ?></td>
-                            <td><?= htmlspecialchars($vehiculo['modelo']) ?></td>
-                            <td><?= htmlspecialchars($vehiculo['matricula']) ?></td>
-                            <td><?= htmlspecialchars($vehiculo['numero']) ?></td>
-                            <td><?= number_format($vehiculo['km_actual'], 0, ',', '.') ?> km</td>
-                            <td><?= number_format($vehiculo['km_aceite'], 0, ',', '.') ?> km</td>
-                            <td><?= $vehiculo['conductor_nombre'] ?? 'No asignado' ?></td>
+                            data-categoria="<?= $prod['categoria_id'] ?>"
+                            data-stock="<?= $stockStatus ?>"
+                            data-precio="<?= $prod['precio'] ?>">
+                            <td><?= $prod['id'] ?></td>
+                            <td><?= htmlspecialchars($prod['referencia']) ?></td>
+                            <td><?= htmlspecialchars($prod['nombre']) ?></td>
+                            <td><?= htmlspecialchars(mb_strimwidth($prod['descripcion'], 0, 50, '...')) ?></td>
+                            <td><?= number_format($prod['stock'], 0, ',', '.') ?></td>
+                            <td><?= number_format($prod['precio'], 0, ',', '.') ?> XAF</td>
+                            <td><?= htmlspecialchars($prod['categoria']) ?></td>
                             <td>
                                 <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                                    <button class="btn btn-ver" onclick="verVehiculo(<?= htmlspecialchars(json_encode($vehiculo), ENT_QUOTES, 'UTF-8') ?>)">
+                                    <button class="btn btn-ver" onclick="verProducto(<?= htmlspecialchars(json_encode($prod), ENT_QUOTES, 'UTF-8') ?>)">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                                             <circle cx="12" cy="12" r="3"></circle>
                                         </svg>
                                     </button>
-                                    <button class="btn btn-editar" onclick="editarVehiculo(<?= htmlspecialchars(json_encode($vehiculo), ENT_QUOTES, 'UTF-8') ?>)">
+                                    <button class="btn btn-editar" onclick="editarProducto(<?= htmlspecialchars(json_encode($prod), ENT_QUOTES, 'UTF-8') ?>)">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                                         </svg>
                                     </button>
                                     <form method="post" style="display:inline;" onsubmit="return confirmarEliminacion();">
-                                        <input type="hidden" name="id" value="<?= $vehiculo['id'] ?>">
+                                        <input type="hidden" name="id" value="<?= $prod['id'] ?>">
                                         <input type="hidden" name="accion" value="eliminar">
-                                        <input type="hidden" name="csrf_token" value="<?= generarTokenCSRF() ?>">
                                         <button type="submit" class="btn btn-eliminar">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                                 <polyline points="3 6 5 6 21 6"></polyline>
@@ -908,7 +852,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                 <path d="M18 15l-6-6-6 6"></path>
             </svg>
         </button>
-        <button class="action-button" id="btnAddNew" title="Nuevo vehículo">
+        <button class="action-button" id="btnAddNew" title="Nuevo producto">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
                 <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -918,83 +862,83 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     
     <!-- ============ MODALES ============ -->
     
-    <!-- Modal Agregar Vehículo -->
-    <div id="modalAgregar" class="modal-vehicle">
-        <div class="modal-vehicle__overlay" onclick="cerrarModal('modalAgregar')"></div>
-        <div class="modal-vehicle__container">
-            <button class="modal-vehicle__close" onclick="cerrarModal('modalAgregar')">
+    <!-- Modal Agregar Producto -->
+    <div id="modalAgregar" class="modal-product">
+        <div class="modal-product__overlay" onclick="cerrarModal('modalAgregar')"></div>
+        <div class="modal-product__container">
+            <button class="modal-product__close" onclick="cerrarModal('modalAgregar')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
             
-            <div class="modal-vehicle__header">
-                <h3 class="modal-vehicle__title">Agregar Nuevo Vehículo</h3>
+            <div class="modal-product__header">
+                <h3 class="modal-product__title">Agregar Nuevo Producto</h3>
             </div>
             
-            <div class="modal-vehicle__body">
-                <form method="post" enctype="multipart/form-data" class="modal-vehicle__form" id="modalAgregarForm">
-                    <input type="hidden" name="csrf_token" value="<?= generarTokenCSRF() ?>">
-                    <input type="hidden" name="accion" value="agregar">
-                    
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="marca" class="modal-vehicle__form-label">Marca</label>
-                            <input type="text" name="marca" id="marca" class="modal-vehicle__form-input" placeholder="Marca" required>
+            <div class="modal-product__body">
+                <form method="post" enctype="multipart/form-data" class="modal-product__form" id="modalAgregarForm">
+                    <div class="modal-product__form-row">
+                        <div class="modal-product__form-group">
+                            <label for="referencia" class="modal-product__form-label">Referencia</label>
+                            <input type="text" name="referencia" class="modal-product__form-input" placeholder="Referencia" required>
                         </div>
                         
-                        <div class="modal-vehicle__form-group">
-                            <label for="modelo" class="modal-vehicle__form-label">Modelo</label>
-                            <input type="text" name="modelo" id="modelo" class="modal-vehicle__form-input" placeholder="Modelo" required>
+                        <div class="modal-product__form-group">
+                            <label for="codigo_barras" class="modal-product__form-label">Código de Barras</label>
+                            <input type="text" name="codigo_barras" class="modal-product__form-input" placeholder="Código de barras">
                         </div>
                     </div>
                     
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="year" class="modal-vehicle__form-label">Año</label>
-                            <input type="number" name="year" id="year" class="modal-vehicle__form-input" placeholder="Año" min="1900" max="<?= date('Y') + 1 ?>" required>
+                    <div class="modal-product__form-group">
+                        <label for="nombre" class="modal-product__form-label">Nombre</label>
+                        <input type="text" name="nombre" class="modal-product__form-input" placeholder="Nombre" required>
+                    </div>
+                    
+                    <div class="modal-product__form-group">
+                        <label for="descripcion" class="modal-product__form-label">Descripción</label>
+                        <textarea name="descripcion" class="modal-product__form-input" placeholder="Descripción" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="modal-product__form-row">
+                        <div class="modal-product__form-group">
+                            <label for="stock" class="modal-product__form-label">Stock</label>
+                            <input type="number" name="stock" class="modal-product__form-input" placeholder="Stock" required>
                         </div>
                         
-                        <div class="modal-vehicle__form-group">
-                            <label for="matricula" class="modal-vehicle__form-label">Matrícula</label>
-                            <input type="text" name="matricula" id="matricula" class="modal-vehicle__form-input" placeholder="Matrícula" required>
+                        <div class="modal-product__form-group">
+                            <label for="stock_minimo" class="modal-product__form-label">Stock Mínimo</label>
+                            <input type="number" name="stock_minimo" class="modal-product__form-input" placeholder="Stock mínimo" required>
                         </div>
                     </div>
                     
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="numero" class="modal-vehicle__form-label">Número</label>
-                            <input type="text" name="numero" id="numero" class="modal-vehicle__form-input" placeholder="Número" required>
+                    <div class="modal-product__form-row">
+                        <div class="modal-product__form-group">
+                            <label for="precio" class="modal-product__form-label">Precio (XAF)</label>
+                            <input type="number" name="precio" class="modal-product__form-input" placeholder="Precio" required>
                         </div>
                         
-                        <div class="modal-vehicle__form-group">
-                            <label for="km_inicial" class="modal-vehicle__form-label">Km Inicial</label>
-                            <input type="number" name="km_inicial" id="km_inicial" class="modal-vehicle__form-input" placeholder="Km Inicial" min="0" required>
+                        <div class="modal-product__form-group">
+                            <label for="categoria_id" class="modal-product__form-label">Categoría</label>
+                            <select name="categoria_id" class="modal-product__form-input" required>
+                                <option value="">Seleccione una categoría</option>
+                                <?php foreach ($categorias as $cat): ?>
+                                    <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['categoria']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                     </div>
                     
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="km_actual" class="modal-vehicle__form-label">Km Actual</label>
-                            <input type="number" name="km_actual" id="km_actual" class="modal-vehicle__form-input" placeholder="Km Actual" min="0" required>
-                        </div>
-                        
-                        <div class="modal-vehicle__form-group">
-                            <label for="km_aceite" class="modal-vehicle__form-label">Próximo Mantenimiento (km)</label>
-                            <input type="number" name="km_aceite" id="km_aceite" class="modal-vehicle__form-input" placeholder="Km para mantenimiento" min="0" required>
-                        </div>
-                    </div>
-                    
-                    <div class="modal-vehicle__form-group">
-                        <label class="modal-vehicle__form-label">Imágenes del Vehículo</label>
-                        <div class="modal-vehicle__image-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="modal-product__form-group">
+                        <label class="modal-product__form-label">Imágenes del Producto</label>
+                        <div class="modal-product__image-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                             <?php for ($i = 1; $i <= 4; $i++): ?>
-                                <div class="modal-vehicle__image-container">
-                                    <label for="imagen<?= $i ?>" class="modal-vehicle__form-label">Imagen <?= $i ?></label>
-                                    <input type="file" name="imagen<?= $i ?>" id="imagen<?= $i ?>" class="modal-vehicle__file-input" accept="image/*">
-                                    <div class="modal-vehicle__image-preview" id="preview<?= $i ?>" style="display: none;">
-                                        <img id="previewImg<?= $i ?>" src="#" alt="Vista previa" class="modal-vehicle__preview-image">
+                                <div class="modal-product__image-container">
+                                    <label for="imagen<?= $i ?>" class="modal-product__form-label">Imagen <?= $i ?></label>
+                                    <input type="file" name="imagen<?= $i ?>" id="imagen<?= $i ?>" class="modal-product__file-input" accept="image/*">
+                                    <div class="modal-product__image-preview" id="preview<?= $i ?>" style="display: none;">
+                                        <img id="previewImg<?= $i ?>" src="#" alt="Vista previa" class="modal-product__preview-image">
                                     </div>
                                 </div>
                             <?php endfor; ?>
@@ -1003,58 +947,68 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                 </form>
             </div>
             
-            <div class="modal-vehicle__footer">
-                <button type="button" class="modal-vehicle__action-btn" onclick="cerrarModal('modalAgregar')">
+            <div class="modal-product__footer">
+                <button type="button" class="modal-product__action-btn" onclick="cerrarModal('modalAgregar')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                     Cancelar
                 </button>
-                <button type="submit" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalAgregarForm">
+                <button type="submit" name="accion" value="agregar" class="modal-product__action-btn modal-product__action-btn--primary" form="modalAgregarForm">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
                         <polyline points="7 3 7 8 15 8"></polyline>
                     </svg>
-                    Guardar Vehículo
+                    Guardar Producto
                 </button>
             </div>
         </div>
     </div>
     
-    <!-- Modal Ver Vehículo -->
-    <div id="modalVer" class="modal-vehicle">
-        <div class="modal-vehicle__overlay" onclick="cerrarModal('modalVer')"></div>
-        <div class="modal-vehicle__container">
-            <button class="modal-vehicle__close" onclick="cerrarModal('modalVer')">
+    <!-- Modal Ver Producto -->
+    <div id="modalVer" class="modal-product">
+        <div class="modal-product__overlay" onclick="cerrarModal('modalVer')"></div>
+        <div class="modal-product__container">
+            <button class="modal-product__close" onclick="cerrarModal('modalVer')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
             
-            <div class="modal-vehicle__header">
-                <div class="vehicle-carousel">
+            <div class="modal-product__header">
+                <div class="product-carousel">
                     <!-- Contenido del carrusel de imágenes se insertará aquí -->
                 </div>
                 
-                <div class="modal-vehicle__header-content">
-                    <h3 class="modal-vehicle__title">CONDUCTOR ASIGNADO: <span id="nombreConductor" class="modal-vehicle__title--highlight">No asignado</span></h3>
-                    <div class="modal-vehicle__badge">
-                        <span id="vehicleStatusBadge">Activo</span>
+                <div class="modal-product__header-content">
+                    <h3 class="modal-product__title">CATEGORÍA: <span id="productoCategoria" class="modal-product__title--highlight"></span></h3>
+                    <div class="modal-product__badge">
+                        <span id="productoStatusBadge">Activo</span>
                     </div>
                 </div>
             </div>
             
-            <div class="modal-vehicle__body">
-                <div id="detalleVehiculo" style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="modal-product__body">
+                <div id="detalleProducto" style="display: flex; gap: 20px; flex-wrap: wrap;">
                     <!-- Contenido dinámico aquí -->
                 </div>
             </div>
             
-            <div class="modal-vehicle__footer">
-                <button class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" onclick="editarVehiculo()">
+            <div class="modal-product__footer">
+                <button class="modal-product__action-btn" onclick="mostrarHistorial('ventas')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    Historial de Ventas
+                </button>
+                <button class="modal-product__action-btn modal-product__action-btn--primary" onclick="editarProducto()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -1065,85 +1019,86 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         </div>
     </div>
     
-    <!-- Modal Editar Vehículo -->
-    <div id="modalEditar" class="modal-vehicle">
-        <div class="modal-vehicle__overlay" onclick="cerrarModal('modalEditar')"></div>
-        <div class="modal-vehicle__container">
-            <button class="modal-vehicle__close" onclick="cerrarModal('modalEditar')">
+    <!-- Modal Editar Producto -->
+    <div id="modalEditar" class="modal-product">
+        <div class="modal-product__overlay" onclick="cerrarModal('modalEditar')"></div>
+        <div class="modal-product__container">
+            <button class="modal-product__close" onclick="cerrarModal('modalEditar')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
             
-            <div class="modal-vehicle__header">
-                <h3 class="modal-vehicle__title">Editar Vehículo</h3>
+            <div class="modal-product__header">
+                <h3 class="modal-product__title">Editar Producto</h3>
             </div>
             
-            <div class="modal-vehicle__body">
-                <form method="post" enctype="multipart/form-data" class="modal-vehicle__form" id="modalEditarForm">
+            <div class="modal-product__body">
+                <form method="post" enctype="multipart/form-data" class="modal-product__form" id="modalEditarForm">
                     <input type="hidden" id="editar_id" name="id">
-                    <input type="hidden" name="csrf_token" value="<?= generarTokenCSRF() ?>">
-                    <input type="hidden" name="accion" value="editar">
                     
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_marca" class="modal-vehicle__form-label">Marca</label>
-                            <input type="text" id="editar_marca" name="marca" class="modal-vehicle__form-input" required>
+                    <div class="modal-product__form-row">
+                        <div class="modal-product__form-group">
+                            <label for="editar_referencia" class="modal-product__form-label">Referencia</label>
+                            <input type="text" id="editar_referencia" name="referencia" class="modal-product__form-input" required>
                         </div>
                         
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_modelo" class="modal-vehicle__form-label">Modelo</label>
-                            <input type="text" id="editar_modelo" name="modelo" class="modal-vehicle__form-input" required>
+                        <div class="modal-product__form-group">
+                            <label for="editar_codigo_barras" class="modal-product__form-label">Código de Barras</label>
+                            <input type="text" id="editar_codigo_barras" name="codigo_barras" class="modal-product__form-input">
                         </div>
                     </div>
                     
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_year" class="modal-vehicle__form-label">Año</label>
-                            <input type="number" id="editar_year" name="year" class="modal-vehicle__form-input" min="1900" max="<?= date('Y') + 1 ?>" required>
+                    <div class="modal-product__form-group">
+                        <label for="editar_nombre" class="modal-product__form-label">Nombre</label>
+                        <input type="text" id="editar_nombre" name="nombre" class="modal-product__form-input" required>
+                    </div>
+                    
+                    <div class="modal-product__form-group">
+                        <label for="editar_descripcion" class="modal-product__form-label">Descripción</label>
+                        <textarea id="editar_descripcion" name="descripcion" class="modal-product__form-input" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="modal-product__form-row">
+                        <div class="modal-product__form-group">
+                            <label for="editar_stock" class="modal-product__form-label">Stock</label>
+                            <input type="number" id="editar_stock" name="stock" class="modal-product__form-input" required>
                         </div>
                         
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_matricula" class="modal-vehicle__form-label">Matrícula</label>
-                            <input type="text" id="editar_matricula" name="matricula" class="modal-vehicle__form-input" required>
+                        <div class="modal-product__form-group">
+                            <label for="editar_stock_minimo" class="modal-product__form-label">Stock Mínimo</label>
+                            <input type="number" id="editar_stock_minimo" name="stock_minimo" class="modal-product__form-input" required>
                         </div>
                     </div>
                     
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_numero" class="modal-vehicle__form-label">Número</label>
-                            <input type="text" id="editar_numero" name="numero" class="modal-vehicle__form-input" required>
+                    <div class="modal-product__form-row">
+                        <div class="modal-product__form-group">
+                            <label for="editar_precio" class="modal-product__form-label">Precio (XAF)</label>
+                            <input type="number" id="editar_precio" name="precio" class="modal-product__form-input" required>
                         </div>
                         
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_km_inicial" class="modal-vehicle__form-label">Km Inicial</label>
-                            <input type="number" id="editar_km_inicial" name="km_inicial" class="modal-vehicle__form-input" min="0" required>
+                        <div class="modal-product__form-group">
+                            <label for="editar_categoria_id" class="modal-product__form-label">Categoría</label>
+                            <select id="editar_categoria_id" name="categoria_id" class="modal-product__form-input" required>
+                                <option value="">Seleccione una categoría</option>
+                                <?php foreach ($categorias as $cat): ?>
+                                    <option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['categoria']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                     </div>
                     
-                    <div class="modal-vehicle__form-row">
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_km_actual" class="modal-vehicle__form-label">Km Actual</label>
-                            <input type="number" id="editar_km_actual" name="km_actual" class="modal-vehicle__form-input" min="0" required>
-                        </div>
-                        
-                        <div class="modal-vehicle__form-group">
-                            <label for="editar_km_aceite" class="modal-vehicle__form-label">Próximo Mantenimiento (km)</label>
-                            <input type="number" id="editar_km_aceite" name="km_aceite" class="modal-vehicle__form-input" min="0" required>
-                        </div>
-                    </div>
-                    
-                    <div class="modal-vehicle__form-group">
-                        <label class="modal-vehicle__form-label">Imágenes del Vehículo</label>
-                        <div class="modal-vehicle__image-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="modal-product__form-group">
+                        <label class="modal-product__form-label">Imágenes del Producto</label>
+                        <div class="modal-product__image-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                             <?php for ($i = 1; $i <= 4; $i++): ?>
-                                <div class="modal-vehicle__image-container">
-                                    <label for="editar_imagen<?= $i ?>" class="modal-vehicle__form-label">Imagen <?= $i ?></label>
-                                    <input type="file" name="editar_imagen<?= $i ?>" id="editar_imagen<?= $i ?>" class="modal-vehicle__file-input" accept="image/*">
+                                <div class="modal-product__image-container">
+                                    <label for="editar_imagen<?= $i ?>" class="modal-product__form-label">Imagen <?= $i ?></label>
+                                    <input type="file" name="editar_imagen<?= $i ?>" id="editar_imagen<?= $i ?>" class="modal-product__file-input" accept="image/*">
                                     <input type="hidden" name="imagen_actual<?= $i ?>" id="imagen_actual<?= $i ?>">
-                                    <div class="modal-vehicle__image-preview" id="editar_preview<?= $i ?>">
-                                        <img id="editar_previewImg<?= $i ?>" src="#" alt="Vista previa" class="modal-vehicle__preview-image" style="display: none;">
+                                    <div class="modal-product__image-preview" id="editar_preview<?= $i ?>">
+                                        <img id="editar_previewImg<?= $i ?>" src="#" alt="Vista previa" class="modal-product__preview-image" style="display: none;">
                                         <div id="current_image<?= $i ?>"></div>
                                     </div>
                                 </div>
@@ -1153,20 +1108,20 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                 </form>
             </div>
             
-            <div class="modal-vehicle__footer">
-                <button type="button" class="modal-vehicle__action-btn" onclick="cerrarModal('modalEditar')">
+            <div class="modal-product__footer">
+                <button type="button" class="modal-product__action-btn" onclick="cerrarModal('modalEditar')">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                     Cancelar
                 </button>
-                <button type="submit" class="modal-vehicle__action-btn modal-vehicle__action-btn--primary" form="modalEditarForm">
+                <button type="submit" name="accion" value="editar" class="modal-product__action-btn modal-product__action-btn--primary" form="modalEditarForm">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                     </svg>
-                    Actualizar Vehículo
+                    Actualizar Producto
                 </button>
             </div>
         </div>
@@ -1174,7 +1129,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     
     <script>
     // Variables globales
-    let currentVehiculo = null;
+    let currentProducto = null;
     let currentPage = 1;
     const rowsPerPage = 10;
     let filteredData = [];
@@ -1219,17 +1174,17 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         });
         
         // Filtros
-        document.getElementById('filterMarca').addEventListener('change', function() {
+        document.getElementById('filterCategoria').addEventListener('change', function() {
             currentPage = 1;
             updateTable();
         });
         
-        document.getElementById('filterModelo').addEventListener('change', function() {
+        document.getElementById('filterStock').addEventListener('change', function() {
             currentPage = 1;
             updateTable();
         });
         
-        document.getElementById('filterMantenimiento').addEventListener('change', function() {
+        document.getElementById('filterPrecio').addEventListener('change', function() {
             currentPage = 1;
             updateTable();
         });
@@ -1301,25 +1256,35 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     // Actualizar tabla con filtros y paginación
     function updateTable() {
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-        const marcaFilter = document.getElementById('filterMarca').value;
-        const modeloFilter = document.getElementById('filterModelo').value;
-        const mantenimientoFilter = document.getElementById('filterMantenimiento').value;
+        const categoriaFilter = document.getElementById('filterCategoria').value;
+        const stockFilter = document.getElementById('filterStock').value;
+        const precioFilter = document.getElementById('filterPrecio').value;
         
         const rows = document.querySelectorAll('#tableBody tr');
         filteredData = [];
         
         rows.forEach(row => {
-            const marca = row.getAttribute('data-marca');
-            const modelo = row.getAttribute('data-modelo');
-            const mantenimiento = row.getAttribute('data-mantenimiento');
+            const categoria = row.getAttribute('data-categoria');
+            const stockStatus = row.getAttribute('data-stock');
+            const precio = parseFloat(row.getAttribute('data-precio'));
             const texto = row.textContent.toLowerCase();
             
             const matchesSearch = texto.includes(searchTerm);
-            const matchesMarca = !marcaFilter || marca === marcaFilter;
-            const matchesModelo = !modeloFilter || modelo === modeloFilter;
-            const matchesMantenimiento = !mantenimientoFilter || mantenimiento === mantenimientoFilter;
+            const matchesCategoria = !categoriaFilter || categoria === categoriaFilter;
+            const matchesStock = !stockFilter || stockStatus === stockFilter;
             
-            if (matchesSearch && matchesMarca && matchesModelo && matchesMantenimiento) {
+            // Filtro por precio
+            let matchesPrecio = true;
+            if (precioFilter) {
+                const [min, max] = precioFilter.split('-').map(Number);
+                if (precioFilter.endsWith('+')) {
+                    matchesPrecio = precio >= min;
+                } else if (min && max) {
+                    matchesPrecio = precio >= min && precio <= max;
+                }
+            }
+            
+            if (matchesSearch && matchesCategoria && matchesStock && matchesPrecio) {
                 filteredData.push(row);
                 row.style.display = '';
             } else {
@@ -1353,7 +1318,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         document.getElementById(modalId).style.display = 'block';
         // Enfocar el primer input
         setTimeout(() => {
-            const firstInput = document.querySelector(`#${modalId} .modal-vehicle__form-input`);
+            const firstInput = document.querySelector(`#${modalId} .modal-product__form-input`);
             if (firstInput) firstInput.focus();
         }, 100);
     }
@@ -1366,43 +1331,42 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         totalImages = 0;
     }
     
-    // Función para ver vehículo
-    function verVehiculo(vehiculo) {
-        currentVehiculo = vehiculo;
+    // Función para ver producto
+    function verProducto(producto) {
+        currentProducto = producto;
         
-        // Configurar conductor asignado
-        document.getElementById('nombreConductor').textContent = vehiculo.conductor_nombre || 'No asignado';
+        // Configurar categoría
+        document.getElementById('productoCategoria').textContent = producto.categoria || 'Sin categoría';
         
         // Configurar estado del badge
-        const diferenciaKm = vehiculo.km_aceite - vehiculo.km_actual;
-        let estado = 'Activo';
+        let estado = 'Stock suficiente';
         let badgeColor = '#10b981'; // Verde
         
-        if (diferenciaKm <= 0) {
-            estado = 'Mantenimiento urgente';
+        if (producto.stock <= producto.stock_minimo * 0.5) {
+            estado = 'Stock crítico';
             badgeColor = '#ef4444'; // Rojo
-        } else if (diferenciaKm <= 500) {
-            estado = 'Próximo a mantenimiento';
+        } else if (producto.stock <= producto.stock_minimo) {
+            estado = 'Stock bajo';
             badgeColor = '#f59e0b'; // Amarillo
         }
         
-        document.getElementById('vehicleStatusBadge').textContent = estado;
-        document.getElementById('vehicleStatusBadge').style.background = badgeColor;
+        document.getElementById('productoStatusBadge').textContent = estado;
+        document.getElementById('productoStatusBadge').style.background = badgeColor;
         
         // Generar HTML para el carrusel de imágenes
         let carouselHTML = `
-            <div class="vehicle-carousel__images" id="vehicleCarouselImages">
+            <div class="product-carousel__images" id="productCarouselImages">
         `;
         
         let hasImages = false;
         for (let i = 1; i <= 4; i++) {
             const imgField = `imagen${i}`;
-            if (vehiculo[imgField]) {
+            if (producto[imgField]) {
                 hasImages = true;
                 carouselHTML += `
-                    <img class="vehicle-carousel__image" 
-                         src="../../imagenes/vehiculos/${vehiculo[imgField]}" 
-                         alt="Vehículo ${i}">
+                    <img class="product-carousel__image" 
+                         src="../../imagenes/productos/${producto[imgField]}" 
+                         alt="Producto ${i}">
                 `;
             }
         }
@@ -1418,61 +1382,61 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         carouselHTML += `
             </div>
             ${hasImages ? `
-            <div class="vehicle-carousel__nav">
-                <button class="vehicle-carousel__btn" onclick="prevImage()">
+            <div class="product-carousel__nav">
+                <button class="product-carousel__btn" onclick="prevImage()">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M15 18l-6-6 6-6"></path>
                     </svg>
                 </button>
-                <button class="vehicle-carousel__btn" onclick="nextImage()">
+                <button class="product-carousel__btn" onclick="nextImage()">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M9 18l6-6-6-6"></path>
                     </svg>
                 </button>
             </div>
-            <div class="vehicle-carousel__counter" id="imageCounter">1/${hasImages ? document.querySelectorAll('.vehicle-carousel__image').length : '0'}</div>
+            <div class="product-carousel__counter" id="imageCounter">1/${hasImages ? document.querySelectorAll('.product-carousel__image').length : '0'}</div>
             ` : ''}
         `;
         
         // Insertar el carrusel en el header
-        const carouselContainer = document.querySelector('.modal-vehicle__header .vehicle-carousel');
+        const carouselContainer = document.querySelector('.modal-product__header .product-carousel');
         carouselContainer.innerHTML = carouselHTML;
         
         // Datos para las columnas
         const columna1 = [
-            { label: 'MARCA', value: vehiculo.marca || 'N/A' },
-            { label: 'MODELO', value: vehiculo.modelo || 'N/A' },
-            { label: 'AÑO', value: vehiculo.year || 'N/A' },
-            { label: 'MATRÍCULA', value: vehiculo.matricula || 'N/A' },
-            { label: 'NÚMERO', value: vehiculo.numero || 'N/A' }
+            { label: 'REFERENCIA', value: producto.referencia || 'N/A' },
+            { label: 'CÓDIGO DE BARRAS', value: producto.codigo_barras || 'N/A' },
+            { label: 'NOMBRE', value: producto.nombre || 'N/A' },
+            { label: 'DESCRIPCIÓN', value: producto.descripcion || 'N/A' },
+            { label: 'CATEGORÍA', value: producto.categoria || 'N/A' }
         ];
         
         const columna2 = [
-            { label: 'KILOMETRAJE INICIAL', value: (vehiculo.km_inicial || '0') + ' km' },
-            { label: 'KILOMETRAJE ACTUAL', value: (vehiculo.km_actual || '0') + ' km' },
-            { label: 'PRÓXIMO MANTENIMIENTO', value: (vehiculo.km_aceite || '0') + ' km' },
-            //{ label: 'ESTADO', value: estado },
-            //{ label: 'CONDUCTOR ASIGNADO', value: vehiculo.conductor_nombre || 'No asignado' }
+            { label: 'STOCK ACTUAL', value: (producto.stock || '0') + ' unidades' },
+            { label: 'STOCK MÍNIMO', value: (producto.stock_minimo || '0') + ' unidades' },
+            { label: 'ESTADO', value: estado },
+            { label: 'PRECIO', value: (producto.precio || '0') + ' XAF' },
+            { label: 'FECHA CREACIÓN', value: new Date(producto.fecha_creacion || '').toLocaleDateString() || 'N/A' }
         ];
         
         // Generar HTML para las tablas
         const html = `
             <div style="flex: 1; min-width: 300px;">
-                <table class="modal-vehicle__data-table">
+                <table class="modal-product__data-table">
                     ${columna1.map(item => `
                         <tr>
-                            <td class="modal-vehicle__data-label">${item.label}</td>
-                            <td class="modal-vehicle__data-value">${item.value}</td>
+                            <td class="modal-product__data-label">${item.label}</td>
+                            <td class="modal-product__data-value">${item.value}</td>
                         </tr>
                     `).join('')}
                 </table>
             </div>
             <div style="flex: 1; min-width: 300px;">
-                <table class="modal-vehicle__data-table">
+                <table class="modal-product__data-table">
                     ${columna2.map(item => `
                         <tr>
-                            <td class="modal-vehicle__data-label">${item.label}</td>
-                            <td class="modal-vehicle__data-value">${item.value}</td>
+                            <td class="modal-product__data-label">${item.label}</td>
+                            <td class="modal-product__data-value">${item.value}</td>
                         </tr>
                     `).join('')}
                 </table>
@@ -1480,7 +1444,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         `;
         
         // Insertar todo el contenido
-        document.getElementById('detalleVehiculo').innerHTML = html;
+        document.getElementById('detalleProducto').innerHTML = html;
         
         // Inicializar el carrusel si hay imágenes
         if (hasImages) {
@@ -1493,7 +1457,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     
     // Funciones para el carrusel
     function initCarousel() {
-        const images = document.querySelectorAll('.vehicle-carousel__image');
+        const images = document.querySelectorAll('.product-carousel__image');
         totalImages = images.length;
         updateCounter();
     }
@@ -1517,7 +1481,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     }
     
     function updateCarousel() {
-        const carousel = document.getElementById('vehicleCarouselImages');
+        const carousel = document.getElementById('productCarouselImages');
         carousel.style.transform = `translateX(-${currentImageIndex * 100}%)`;
         updateCounter();
     }
@@ -1529,22 +1493,22 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         }
     }
     
-    // Función para editar vehículo
-    function editarVehiculo(vehiculo = null) {
-        if (!vehiculo && currentVehiculo) {
-            vehiculo = currentVehiculo;
+    // Función para editar producto
+    function editarProducto(producto = null) {
+        if (!producto && currentProducto) {
+            producto = currentProducto;
         }
         
-        if (vehiculo) {
-            document.getElementById('editar_id').value = vehiculo.id;
-            document.getElementById('editar_marca').value = vehiculo.marca;
-            document.getElementById('editar_modelo').value = vehiculo.modelo;
-            document.getElementById('editar_year').value = vehiculo.year;
-            document.getElementById('editar_matricula').value = vehiculo.matricula;
-            document.getElementById('editar_numero').value = vehiculo.numero;
-            document.getElementById('editar_km_inicial').value = vehiculo.km_inicial;
-            document.getElementById('editar_km_actual').value = vehiculo.km_actual;
-            document.getElementById('editar_km_aceite').value = vehiculo.km_aceite;
+        if (producto) {
+            document.getElementById('editar_id').value = producto.id;
+            document.getElementById('editar_referencia').value = producto.referencia;
+            document.getElementById('editar_codigo_barras').value = producto.codigo_barras;
+            document.getElementById('editar_nombre').value = producto.nombre;
+            document.getElementById('editar_descripcion').value = producto.descripcion;
+            document.getElementById('editar_stock').value = producto.stock;
+            document.getElementById('editar_stock_minimo').value = producto.stock_minimo;
+            document.getElementById('editar_precio').value = producto.precio;
+            document.getElementById('editar_categoria_id').value = producto.categoria_id;
             
             // Mostrar imágenes actuales
             for (let i = 1; i <= 4; i++) {
@@ -1552,11 +1516,11 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
                 const previewDiv = document.getElementById(`current_image${i}`);
                 const hiddenInput = document.getElementById(`imagen_actual${i}`);
                 
-                if (vehiculo[imgField]) {
-                    hiddenInput.value = vehiculo[imgField];
+                if (producto[imgField]) {
+                    hiddenInput.value = producto[imgField];
                     previewDiv.innerHTML = `
-                        <img src="../../imagenes/vehiculos/${vehiculo[imgField]}" 
-                             class="modal-vehicle__preview-image"
+                        <img src="../../imagenes/productos/${producto[imgField]}" 
+                             class="modal-product__preview-image"
                              style="max-width: 100px; max-height: 80px;">
                         <div style="font-size: 12px; color: #666; text-align: center; margin-top: 5px;">Imagen actual</div>
                     `;
@@ -1568,20 +1532,28 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
             cerrarModal('modalVer');
             abrirModal('modalEditar');
         } else {
-            // Si no hay vehículo, abrir modal de agregar
+            // Si no hay producto, abrir modal de agregar
             cerrarModal('modalVer');
             abrirModal('modalAgregar');
         }
     }
     
+    // Función para mostrar historial
+    function mostrarHistorial(tipo) {
+        if (!currentProducto) return;
+        
+        alert(`Mostrar historial de ${tipo} para el producto ${currentProducto.referencia}`);
+        // Aquí puedes implementar la lógica para cargar y mostrar el historial
+    }
+    
     // Confirmar eliminación
     function confirmarEliminacion() {
-        return confirm('¿Estás seguro de que deseas eliminar este vehículo?');
+        return confirm('¿Estás seguro de que deseas eliminar este producto?');
     }
     
     // Cerrar modal al hacer clic fuera del contenido
     window.onclick = function(event) {
-        if (event.target.className === 'modal-vehicle__overlay') {
+        if (event.target.className === 'modal-product__overlay') {
             const modalId = event.target.parentElement.id;
             cerrarModal(modalId);
         }
