@@ -1,0 +1,315 @@
+Aquí tienes el prompt completo que puedes copiar y pegar cuando inicies un nuevo chat, junto con los archivos necesarios para que pueda desarrollar el módulo `deudas.php` manteniendo la coherencia con los estilos y funcionalidades existentes:
+
+---
+
+**Prompt para nuevo chat:**
+
+"Necesito desarrollar la hoja prestamos.php similar en estilos que el ingresos-pendientes.php:
+
+1. **Estructura y estilos**: similar a ingresos-pendientes.php.
+
+2. **Funcionalidades**:
+-Filtros similares a ingresos-pendiente.php: buscar, fecha desde, hasta, monto, conductor
+-Los estilos de los filtros deben ser como la hoja ejemplo.
+- Un boton de agregar o añadir prestamo
+    - Funciones del boton agregar: - abrir el modal agregar, y seleccionar el conductor, monto y descripcion, fecha y guardar el prestamo
+    - al guardar el prestamo, se resta dinero de la caja predeterminada( Tablas afectadas, cajas(la caja predeterminada=1 id=1) , movimientos_caja)
+-Tabla que lista los prestamos. campos(fecha, conductor, Monto prestado, Pendiente, Acciones(botones:ver, pagar, eliminar))
+    -Boton ver: Abre el modal que muestra los detalles del prestamo, que son el conductor, el monto prestado, Monto pagado, Pendiente
+    -Boton pagar: abre el modal que te permite roducir la cantidad a pagar, una vez roducido, el modal tendra otro boton de pagar que guardara el
+    pago y actualizara el prestamo, el pago se registrara en la tabla pagos_prestamos, y sumara saldo a la caja predeterminada, generando tambien un movimiento de caja
+    -Boton eliminar, eliminara el prestamo, no se podra eliminar un prestamo que conlleva un pago.
+-Los prestamos ya pagados no apareceran en la tabla
+-Quiero una paginacion en la tabla
+-Quiero que todo el codigo este en una misma hoja, prestamos.php, no quiero que ningun codigo, sea javascripts o el que vayas a usar este en una hoja externa, egra todo en una hoja
+
+
+Estas son las tablas que van a eractuar, 
+3. Esquema de las tablas relacionadas (las que ya me proporcionaste):
+ - prestamos
+ - amonestaciones
+ - pagos_prestamos
+ - pagos_amonestaciones  
+ - cajas
+ - movimientos_caja
+ - conductores
+
+tablas y columnas de las tablas que eractuan.
+
+prestamos
+--conductor_id
+--descripcion
+--estado
+--fecha
+--id
+--monto
+--saldo_pendiente
+
+amonestaciones
+--conductor_id
+--descripcion
+--estado
+--fecha
+--id
+--monto
+--saldo_pendiente
+
+conductores
+--dias_por_ciclo
+--dip
+--direccion
+--estado
+--fecha
+--id
+--imagen
+--ingreso_dia_libre
+--ingreso_dia_obligatorio
+--ingreso_libre
+--ingreso_obligatorio
+--nombre
+--salario_mensual
+--telefono 
+--vehiculo_id
+
+cajas(donde hay una caja predeterminada)
+--id
+--nombre
+--predeterminada
+--saldo_actual
+--tipo
+
+-movimientos_caja:
+--caja_id
+--descripcion
+--fecha
+--id
+--ingreso_id
+--monto
+--pago_amonestacion_id
+--pago_ingreso_id
+--pago_prestamo_id
+-- tipo (egreso o ingreso)
+
+pagos_prestamos:
+-- descripcion
+-- fecha
+-- id
+-- monto
+-- prestamo_id
+
+pagos_amonestaciones:
+-- descripcion
+-- fecha
+-- id
+-- monto
+-- prestamo_id
+
+**Notas adicionales que puedes incluir:**
+- "Los colores deben mantenerse usando las variables CSS existentes (--color-primario, etc.)"
+- "Los botones deben tener los mismos estilos hover/active que en los otros módulos"
+- "La paginación debe funcionar igual que en conductores.php"
+- "Los modales deben mantener la misma animación fadeIn"
+
+3. **Archivos adjuntos** para referencia de estilo y estructura:
+ - `ingresos.php`
+ - `conductores.php`
+ - "gestiones.php" - este es el archivo que contiene la pestaña prestamos.php
+ - Estructura de tablas relacionadas a deudas
+
+4. **Requerimientos específicos**:
+ - Pestañas con diseño responsive
+ - Modales idénticos a los existentes
+ - Mismos efectos y animaciones
+ - egración con caja principal (predeterminada=1, id=1)
+ - Validaciones consistentes
+
+Por favor, confirma que has analizado los archivos adjuntos y propón una estructura detallada antes de codificar."
+
+---
+
+**Archivos que deberías adjuntar en el nuevo chat:**
+1. `ingresos.php` (el mismo que me mostraste)
+2. `conductores.php` (el mismo que me mostraste)
+3. Esquema de las tablas relacionadas (las que ya me proporcionaste):
+ - prestamos
+ - pagos_prestamos  
+ - amonestaciones
+ - pagos_amonestaciones
+ - pagos_ingresos_pendientes
+
+---
+
+**Notas adicionales que puedes incluir:**
+- "Los colores deben mantenerse usando las variables CSS existentes (--color-primario, etc.)"
+- "Los botones deben tener los mismos estilos hover/active que en los otros módulos"
+- "La paginación debe funcionar igual que en conductores.php"
+- "Los modales deben mantener la misma animación fadeIn"
+
+Con esta información, en un nuevo chat podré desarrollar el módul
+
+ - Sistema de pestañas para los 3 tipos de deudas:
+   1. Ingresos pendientes (de `monto_pendiente` en tabla `ingresos`)
+   2. Préstamos (tabla `prestamos` y `pagos_prestamos`)
+   3. Amonestaciones (tabla `amonestaciones` y `pagos_amonestaciones`)
+   4. Pestaña adicional para deudas pagadas
+ - CRUD diferenciado por tipo de deuda
+ - Resumen total de deudas por conductor
+ - Filtros avanzados
+
+Tengo las tablas
+
+prestamos
+--conductor_id )
+--descripcion (text, NULL, )
+--estado 'pendi..., )
+--fecha (date)
+--id (PRI, )
+--monto (decimal)
+--saldo_pendiente (decimal, 0.00, )
+
+amonestaciones
+--conductor_id )
+--descripcion (text)
+--estado 'activ..., )
+--fecha (date)
+--id (PRI, )
+--monto (decimal)
+
+conductores
+--dias_por_ciclo 30, )
+--dip (UNI, )
+--direccion 'Sin d..., )
+--estado 'Activ...)
+--fecha (date, NULL, )
+--id (PRI, )
+--imagen NULL, )
+--ingreso_dia_libre ()
+--ingreso_dia_obligatorio ()
+--ingreso_libre
+--ingreso_obligatorio
+--nombre ()
+--salario_mensual
+--telefono ()
+--vehiculo_id (UNI,)
+
+cajas(donde hay una caja predeterminada)
+--id (PRI, )
+--nombre NULL, )
+--predeterminada (tiny, )
+--saldo_actual )
+--tipo NULL, )
+
+-movimientos_caja:
+caja_id )
+--descripcion NULL, )
+--fecha (timestamp, curren...)
+--id (PRI, )
+--ingreso_id (,)
+--monto (decimal)
+--pago_amonestacion_id (,)
+--pago_ingreso_id (,)
+--pago_prestamo_id (,)
+-- tipo ()
+
+pagos_prestamos:
+-- descripcion (text, NULL, )
+-- fecha (date)
+-- id (PRI, )
+-- monto (decimal)
+-- prestamo_id )
+
+Quiero desarollar la hoja  amonestaciones, 
+- que tenga los filtros por conductor, 
+filtros por rango de fecha, filtro por monto, y un buscador sea por conductor 
+matricula o id,primero,
+- que me liste todos las  amonestaciones realizados por los conductores en sus respectivas fechas
+que
+- que haya un boton de agregar nuevo  amonestacion, ese boton abre un modal donde se selecciona la fecha
+el conductor, el monto a prestar, y se confirma la amonestacion.
+- que cada fila listada tenga el boton de ver(este boton abre un modal con los detalles del  amonestacion), 
+editar(este boton abre un modal de editar el  amonestacion), pagar(este boton abre un modal de pagar el  amonestacion)
+- el  amonestacion se puede pagar parcialmente, y cada pago se registra en la tabla de pagos, ya que se usara en el
+futuro para cargar el historial de pagos.
+- al editar el  amonestacion, si se edita el monto prestado, este actualizara el  amonestacion, aunque ya se haya realizado un
+pago de ese  amonestacion, simplemente que no se puede registrar un monto inferior a un pago realizado de ese  amonestacion.
+- Si el  amonestacion ya ha sido pagado por completo el estado del  amonestacion debe poner pagado, y se desaparece el boton pagar
+- Si el  amonestacion aun no se ha terminado de pagar debe seguir poniendo pendiente
+- es importante que el modal de ver  amonestacion, muestre todos los pagos realizados de ese  amonestacion.
+- asegurate de hacer que todos los modales funcionamiento
+Porfavor quiero todo el codigo en una sola hoja, no quiero archivos externos ni endpos, todo en la hoja  amonestaciones.php
+para saber los estilos y colores, te adjunto la hoja de ingresos pendientes para que veas los colores que usa para la tabla
+los botones y los filtros.
+
+
+Quiero que usando la hoja conductores.php e ingresos.php como modelo y estilos y estructura, ya que son hojas
+de mi proyecto, quiero desarollar un dashboard llamado index.php.
+1- Quiero que aparezca una linea de texto corriendo de derecha a izquierda con los vehiculos que estan 
+proximos a mantenimientos(son aquellos cuyo campo km_actual es igual a km_aceite y o km_actual le faltan 500k para 
+que sea igual a km_aceite)
+  -para eso hay que usar la tabla vehiculos: id, marca, modelo, matricula, numero, km_actual, km_aceite
+2 Quiero que la parte superior del dashboard tenga cuatro bloques(que los estilos sean profesionales, haya sombra y se vean 
+como bloques de totales): TOTAL INGRESOS, TOTAL GASTOS, DEUDAS Y PENDIENTES, SALDO CAJA
+TOTAL INGRESOS: Usando la tabla ingresos especificamente el campo fecha y el campo monto_ingresado, que sume todos los ingresos del
+mes actual, y muestre el total de dichos ingresos
+TOTAL GASTOS: suma total de cada mes de los campos de las tablas siguientes
+  -mantenimientos: fecha, costo
+  -gastos: fecha, total
+DEUDAS Y PENDIENTES: Suma total de cada mes de los campos de las tablas siguientes:
+  -ingresos: fecha, monto_pendiente
+  -prestamos: fecha, saldo_pendiente
+SALDO CAJA: Saldo actual de la caja predeterminada(1) de la tabla cajas, campo "saldo_actual"
+
+3- despues quiero que me aparezcan los graficos comparativos del mes actual(puedes usar el estilo que tu creas que es profesional) 
+entre la tabla previsiones y los totales de cada tipo:
+
+Campos de la tabla previsiones
+  -tipo('mantenimientos','ingresos','gastos','prestamos','salarios')
+  -fecha
+  -monto_previsto
+campos de la tabla mantenimientos a comparar con la tabla previsiones en su campo tipo:mantenimientos
+  -fecha, costo
+campos de la tabla ingresos a comparar con el campo tipo:ingreso de la tabla previsiones
+  -fecha, monto_ingresado
+campos de la tabla gastos a comparar con el tipo gastos:
+  -fecha, total
+campos de la tabla prestamos a comparar con el tipo prestamos:
+  -fecha, saldo_pendiente
+
+4- Quiero una tabla html que me recoja la suma por dia de los gastos e y la suma por dia de los ingresos, suma por dia de los mantenimientos
+suma por dia de los prestamos, y me de una tabla de 10 filas que recogen informacion de los ultimos 10 dias(10 filas, cada dia con su fila)
+con los siguientes campos:
+Fecha: la fecha del total de gastos o ingresos o prestamos o mantenimientos
+-Motivo: Gasto, Mantenimiento, Ingreso, Prestamos
+-Importe: Si es un ingreso es positivo pero sin mostrar el signo positivo, pero si es un gasto, mantenimiento, prestamo, el signo es negativo
+y se muestra y el color de la columna es roja
+
+Quiero que el archivo index.php contenga todo el codigo, sea el css, js, html, etc, hazme sugerencias si lo quieres
+
+
+
+no quiero registrar los formularios generados, solo quiero generarlos, 
+puedo generar los que me de la gana, quiero que el proceso sea, 
+en el menu voy a la seccion impresos, y me abre un modal selecciono el tipo(ingresos, gastos, contrato),
+por ahora solo vamos a centrarnos en el de ingreso, los demas los desarollamos en el futuro,
+si selecciono el tipo ingreso, debe pedirme que seleccione el conductor. al seleccionar el conductor quiero
+que me genere el formulario con los siguientes datos
+
+Titulo: INGRESOS DIARIOS
+Nombre:Nombre del conductor, Dip:Dip del conductor, Tel: Telefono del conductor
+Vehiculo: Marca y Modelo, Matricula: Matricula del vehiculo, Numero: Numero del vehiculo
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Fecha | Nº | Ingreso | Pendiente | Completado | Kilometros | Firma
+
+Las tablas que quiero que interactuen para extraer los datos son:
+Vehiculos: 
+-id
+-marca
+-modelo
+-matricula
+-numero
+Conductores:
+-id
+-nombre
+-telefono
+-dip
+-vehiculo_id

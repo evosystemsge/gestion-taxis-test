@@ -71,3 +71,40 @@ $prestamos = $pdo->query("
         </tbody>
     </table>
 </div>
+quiero agregar un filtro a esta hoja, buscar, rango de fechas, listar conductor 
+y al lado el boton agregar prestamo: quiero que ese boton agregue el prestamo 
+abriendo un modal de agregar, esa accion agregara un prestamo al conductor en 
+la tabla prestamos y generara un movimiento de caja 
+restando saldo de la caja predeterminada de la tabla cajas y  en la tabla 
+movimientos_caja se registrara las columnas que interactuaran en la tabla movimientos_caja: 
+son caja_id, prestamo_id, tipo(ingreso o egreso), monto, descripcion, fecha.
+
+Tablas que van a interactuar
+
+Prestamos
+id
+fecha
+conductor_id
+monto
+descripcion
+saldo_pendiente
+estado
+
+Cajas
+id
+nombre
+tipo
+predeterminada(actualmente la predeterminada es 1)
+saldo_actual
+
+Movimientos caja
+id
+caja_id
+ingreso_id
+pago_prestamo_id
+pago_amonestacion_id
+prestamo_id
+tipo(ingreso o egreso)
+monto
+descripcion
+fecha

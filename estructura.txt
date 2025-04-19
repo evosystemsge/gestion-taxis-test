@@ -1,4 +1,5 @@
-Tengo la siguiente estructura en mi proyecto, te adjunto los codigos que ya tengo desarollados
+Tengo la siguiente estructura en mi proyecto, te adjunto los codigos de database.php y styles.css y footer.php y header.ph para
+ que sepas mas o menos que estilos y colores manejo, ya tengo desarollados
 Quiero que me ayudes a continuar con mi proyecto. 
 
 /taxis
@@ -11,15 +12,15 @@ Quiero que me ayudes a continuar con mi proyecto.
 |   |──header.php (desarollado y funcionando perfectamente)
 │── /modules
 │   │── /vehiculos
-│   │   ├── vehiculos.php
-│   │   ├── ver_vehiculo.php
-│   │   ├── editar_vehiculos.php
+│   │   ├── vehiculos.php - funciona correctamente
+│   │   ├── ver_vehiculo.php - funciona correctamente
+│   │   ├── editar_vehiculos.php - funciona correctamente
 │   │── /conductores
-│   │   ├── conductores.php
+│   │   ├── conductores.php - funciona correctamente
 │   │   ├── ver_conductor.php
-│   │   ├── editar_conductore.php
+│   │   ├── editar_conductores.php - funciona correctamente
 │── /styles
-│   ├── styles.css
+│   ├── styles.css - funciona correctamente
 │── index.php (Funciona y esta desarollado)
 
 Estructura de la Base de datos
@@ -33,7 +34,10 @@ conductores
 
 Todo esta funcionando perfectamente.
 
-Ahora quiero desarollar el modulo de ingresos,
+Ahora quiero desarollar el modulo de ingresos, y quiero que pongas los estilos en cada hoja php. no hacerte
+falta usar el styles.css ya es para el header y el footer.
+
+
 Tengo en mi menu una seccion llamada caja y gastos los submenu son como siguiente
 caja
     ingresos - aqui se manejaran los ingresos de los taxistas, consisten en entregas de dineros diarios que
@@ -662,3 +666,46 @@ CREATE TABLE conductores (
     vehiculo_id INT DEFAULT NULL,
     FOREIGN KEY (vehiculo_id) REFERENCES vehiculos(id) ON DELETE SET NULL
 );
+
+
+Preguntas para mejorar conductores.php
+Para adaptar conductores.php al mismo estilo que vehiculos.php, necesito algunas aclaraciones:
+
+Diseño de modales:
+
+¿Quieres mantener los mismos colores azules (#004b87) o prefieres la paleta morada (#4f46e5) de vehiculos.php?
+quiero mantener los azules
+
+¿Debo mantener el mismo esquema de botones (primario, secundario)?
+usa el mismo esquema que vehiculos.php
+Estructura de datos:
+
+¿Los campos actuales de conductores (nombre, teléfono, dip, ingreso_obligatorio, ingreso_libre, vehículo) son suficientes o quieres agregar más campos como en vehiculos.php?
+quiero agregar tambien el campo imagen
+Funcionalidades:
+
+¿Quieres implementar un sistema de imágenes/fotos para los conductores como en los vehículos?
+si, pero ellos solo se les subira una sola imagen.
+¿Te gustaría añadir un historial o registro de actividades para los conductores?
+Historial de ingresos, Historial de Salarios, Historial de Deudas, Historial de Incidencias
+Validaciones:
+
+¿Debo mantener las validaciones actuales (no eliminar si tiene vehículo asignado) o añadir más controles?
+No eliminar si tiene vehiculo asignado, en la edicion o agregar al seleccionar vehiculo solo se ven los vehiculos no asignados
+Vista detallada:
+
+¿Quieres una vista detallada del conductor (como el modal "Ver" de vehiculos) con más información?
+si, que los detalles sean en dos columnas, porque una se hace larga.
+Responsividad:
+
+¿Debo mantener el diseño responsivo igual que en vehiculos.php?
+si, para poder verse en moviles
+Iconos:
+
+¿Quieres usar los mismos iconos SVG de vehiculos.php o mantener los actuales?
+como en vehiculos.php
+Notificaciones:
+
+¿Prefieres los alerts actuales o implementar notificaciones más elegantes como en vehiculos.php?
+como en vehiculos.php
+Con estas respuestas podré hacer una adaptación más precisa que mantenga la coherencia entre ambos módulos. ¿Qué aspectos son prioritarios para ti en esta mejora de estilos?

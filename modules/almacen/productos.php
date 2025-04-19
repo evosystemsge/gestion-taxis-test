@@ -177,13 +177,21 @@ $categorias = $pdo->query("SELECT id, categoria FROM categorias ORDER BY categor
         color: var(--color-texto);
         line-height: 1.6;
     }
-    
+    /*
     .container {
         max-width: 1250px;
         margin: 20px auto;
         background: #fff;
         padding: 25px;
         border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+    }*/
+    .container {
+        max-width: 1400px;
+        margin: 0 auto; /* Cambiado para eliminar espacio superior */
+        background: #fff;
+        padding: 0 25px 25px 25px; /* Eliminado padding superior */
+        border-radius: 0 0 10px 10px;
         box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
     }
     

@@ -4,7 +4,7 @@ include '../../layout/header.php';
 require '../../config/database.php';
 
 // ===== MEJORAS DE SEGURIDAD ===== //
-session_start();
+
 
 function generarTokenCSRF() {
     if (empty($_SESSION['csrf_token'])) {
@@ -218,12 +218,20 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
         line-height: 1.6;
     }
     
-    .container {
+    /*.container {
         max-width: 1250px;
         margin: 20px auto;
         background: #fff;
         padding: 25px;
         border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+    }*/
+    .container {
+        max-width: 1400px;
+        margin: 0 auto; /* Cambiado para eliminar espacio superior */
+        background: #fff;
+        padding: 0 25px 25px 25px; /* Eliminado padding superior */
+        border-radius: 0 0 10px 10px;
         box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
     }
     
@@ -780,7 +788,7 @@ $modelos = $pdo->query("SELECT DISTINCT modelo FROM vehiculos ORDER BY modelo")-
     </style>
 </head>
 <body>
-    <div class="container">
+<div class="container" style="margin-top: 0; padding-top: 0;">
         <h2>Lista de Vehículos</h2>
         
         <!-- Controles de tabla -->

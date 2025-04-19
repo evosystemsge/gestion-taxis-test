@@ -3,6 +3,25 @@
 include '../../layout/header.php';
 require '../../config/database.php';
 
+// Manejar la solicitud de productos de mantenimiento
+if (isset($_GET['get_productos']) && isset($_GET['mantenimiento_id'])) {
+    header('Content-Type: application/json');
+    
+    $mantenimientoId = $_GET['mantenimiento_id'];
+    
+    $stmt = $pdo->prepare("
+        SELECT mp.*, p.nombre 
+        FROM mantenimiento_productos mp
+        JOIN productos p ON mp.producto_id = p.id
+        WHERE mp.mantenimiento_id = ?
+    ");
+    $stmt->execute([$mantenimientoId]);
+    $productos = $stmt->fetchAll();
+    
+    echo json_encode($productos);
+    exit;
+}
+
 // Configuración de imágenes
 $uploadDir = '../../imagenes/mantenimientos/';
 if (!file_exists($uploadDir)) {
@@ -212,12 +231,20 @@ $cajas = $pdo->query("SELECT id, nombre FROM cajas WHERE predeterminada = 1")->f
         line-height: 1.6;
     }
     
-    .container {
+    /*.container {
         max-width: 1250px;
         margin: 20px auto;
         background: #fff;
         padding: 25px;
         border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+    }*/
+    .container {
+        max-width: 1400px;
+        margin: 0 auto; /* Cambiado para eliminar espacio superior */
+        background: #fff;
+        padding: 0 25px 25px 25px; /* Eliminado padding superior */
+        border-radius: 0 0 10px 10px;
         box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
     }
     
@@ -1483,52 +1510,53 @@ $cajas = $pdo->query("SELECT id, nombre FROM cajas WHERE predeterminada = 1")->f
     }
     
     // Cargar productos del mantenimiento
-    function cargarProductosMantenimiento(mantenimientoId) {
-        fetch(`/taxis/modules/api/get_mantenimiento_productos.php?mantenimiento_id=${mantenimientoId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.length > 0) {
-                    let html = `
-                        <div class="table-container">
-                            <table class="products-table">
-                                <thead>
-                                    <tr>
-                                        <th>Producto</th>
-                                        <th>Cantidad</th>
-                                        <th>Precio Unitario</th>
-                                        <th>Subtotal</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                    `;
-                    
-                    data.forEach(producto => {
-                        html += `
-                            <tr>
-                                <td>${producto.nombre}</td>
-                                <td>${producto.cantidad}</td>
-                                <td>${producto.precio_unitario.toLocaleString()} XAF</td>
-                                <td>${(producto.cantidad * producto.precio_unitario).toLocaleString()} XAF</td>
-                            </tr>
-                        `;
-                    });
-                    
+    // Cargar productos del mantenimiento
+function cargarProductosMantenimiento(mantenimientoId) {
+    fetch(`mantenimientos.php?get_productos=1&mantenimiento_id=${mantenimientoId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.length > 0) {
+                let html = `
+                    <div class="table-container">
+                        <table class="products-table">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Cantidad</th>
+                                    <th>Precio Unitario</th>
+                                    <th>Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                data.forEach(producto => {
                     html += `
-                                </tbody>
-                            </table>
-                        </div>
+                        <tr>
+                            <td>${producto.nombre}</td>
+                            <td>${producto.cantidad}</td>
+                            <td>${producto.precio_unitario.toLocaleString()} XAF</td>
+                            <td>${(producto.cantidad * producto.precio_unitario).toLocaleString()} XAF</td>
+                        </tr>
                     `;
-                    
-                    document.getElementById('productosMantenimiento').innerHTML = html;
-                } else {
-                    document.getElementById('productosMantenimiento').innerHTML = '<p>No se utilizaron productos en este mantenimiento.</p>';
-                }
-            })
-            .catch(error => {
-                console.error('Error al cargar productos:', error);
-                document.getElementById('productosMantenimiento').innerHTML = '<p>Error al cargar los productos.</p>';
-            });
-    }
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                document.getElementById('productosMantenimiento').innerHTML = html;
+            } else {
+                document.getElementById('productosMantenimiento').innerHTML = '<p>No se utilizaron productos en este mantenimiento.</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error al cargar productos:', error);
+            document.getElementById('productosMantenimiento').innerHTML = '<p>Error al cargar los productos.</p>';
+        });
+}
     
     // Funciones para el carrusel
     function initCarousel() {

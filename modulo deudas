@@ -1,0 +1,176 @@
+Estructura definitiva del módulo Deudas
+📁 Tablas (a crear)
+prestamos
+
+Prestamos registrados por el administrador.
+
+Al crear uno, se descuenta el monto de la caja predeterminada.
+
+pagos_prestamos
+
+Registra cada pago (cuota) a un préstamo.
+
+Puedes tener múltiples pagos por préstamo.
+
+amonestaciones
+
+Sanciones registradas por el administrador, con descripción y monto.
+
+Pueden tener estados: activa, pagada, anulada.
+
+pagos_ingresos_pendientes
+
+Pagos manuales hechos por el conductor para saldar ingresos pendientes.
+
+Registrados solo por el administrador.
+
+Puedes ver, editar y eliminar.
+
+🧩 Integración con tablas existentes
+ingresos: mantiene el cálculo de la deuda de ingresos pendientes (monto_pendiente).
+
+Se actualiza el cálculo del nuevo pendiente restando los pagos hechos en pagos_ingresos_pendientes.
+
+conductores: tabla base para vincular las deudas.
+
+Caja:
+
+Todos los movimientos (préstamos, pagos, etc.) afectarán el saldo de una caja específica, que se puede definir como "caja predeterminada".
+
+🧭 Vista del módulo "Deudas"
+Tendrá tres secciones internas:
+
+1. Ingresos pendientes
+Mostrar el total pendiente por conductor.
+
+Mostrar pagos realizados.
+
+Formulario de nuevo pago manual.
+
+Permitir modificar o eliminar pagos.
+
+2. Préstamos
+Listado de préstamos con:
+
+Monto, pagado, saldo.
+
+Estado: activo, saldado.
+
+Botón para registrar nuevo préstamo.
+
+Botón para registrar pago de préstamo.
+
+Historial de pagos por préstamo.
+
+3. Amonestaciones
+Listado por conductor.
+
+Campos: descripción, monto, fecha, estado.
+
+Botón para crear nueva.
+
+Permitir anular o marcar como pagada.
+
+
+-- Tabla de préstamos
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    fecha DATE NOT NULL,
+    conductor_id INT NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    descripcion TEXT,
+    FOREIGN KEY (conductor_id) REFERENCES conductores(id)
+
+
+-- Tabla de pagos de préstamos
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    prestamo_id INT NOT NULL,
+    fecha DATE NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    descripcion TEXT,
+    FOREIGN KEY (prestamo_id) REFERENCES prestamos(id)
+
+
+-- Tabla de amonestaciones
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    conductor_id INT NOT NULL,
+    fecha DATE NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    descripcion TEXT NOT NULL,
+    estado ENUM('activa', 'pagada', 'anulada') DEFAULT 'activa',
+    FOREIGN KEY (conductor_id) REFERENCES conductores(id)
+
+
+-- Tabla de pagos de ingresos pendientes
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    conductor_id INT NOT NULL,
+    fecha DATE NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    descripcion TEXT,
+    FOREIGN KEY (conductor_id) REFERENCES conductores(id)
+
+-- tabla pagos_amonestaciones (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    amonestacion_id INT NOT NULL,
+    fecha DATE NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    descripcion TEXT,
+    FOREIGN KEY (amonestacion_id) REFERENCES amonestaciones(id)
+);
+
+
+Necesito que me desarolles el modulo deudas.php partiendo de estas dos hojas, los estilos, los modales, la estructura, 
+las vistas deven ser iguales. Recordarte que los conductores tienen 3 tipos de deudas:
+1-  las deudas de los ingresos pendientes cuyo saldo acumulado se almacena en el ultimo registro
+del ingreso de dicho conductor en el campo monto_pendiente. Sus pagos se registraran manualmente en la tabla pagos_ingresos_pendientes.
+2-  Los prestamos que se introduciran manualmente y se usara la tabla prestamos para registrarlos y la tabla pagos_prestamos para saldarlos
+3- Las amonestaciones que se registraran en la tabla amonestaciones y pueden ser activas, pagadas, anuladas, etc. sus pagos se registraran en
+la tabla pagos_amonestaciones
+
+Tengo actualmente las tablas 
+conductores 
+vehiculos 
+cajas donde la caja id 1 es la predeterminada con 1
+
+
+ingresos
+caja_id (MUL, int, 1, nullable)
+ciclo (int, NULL, nullable)
+ciclo_completado (tinyint, nullable)
+conductor_id (MUL, int, NULL, nullable)
+contador_ciclo (int, nullable)
+fecha (date, NULL, nullable)
+id (PRI, int)
+kilometros (int, NULL, nullable)
+monto (int, NULL, nullable)
+monto_esperado (int, NULL, nullable)
+monto_ingresado (decimal)
+monto_pendiente (int, NULL, nullable)
+recorrido (int, NULL, nullable)
+tipo_ingreso (enum, NULL, nullable)
+
+Preguntas para clarificar requisitos:
+¿Debe el módulo mostrar las tres categorías de deudas en una sola vista integrada o en pestañas/separadas? me gustaria que sean pestañas
+
+¿Qué campos específicos deben mostrarse para cada tipo de deuda en las tablas? Conductor, Tipo de deuda, Monto, Estado y el boton de pagar.
+una vez pagada una deuda se desaparece y pasa a la seccion de deudas pagadas, si se elimina el pago la deuda vuelve a reflejarse, si se modifica
+el pago tambien vuelve a reflejarse.
+
+¿Las operaciones CRUD (Crear, Leer, Actualizar, Eliminar) deben estar disponibles para todos los tipos de deudas? 
+En las deudas tipo ingresos pendientes, no se puede eliminar, ni editar solo ver y pagar.
+En las deudas tipo prestamo se puede modificar, ver, editar, pagar
+
+¿Cómo debe manejarse el estado de las amonestaciones (activa/pagada/anulada)? la opcion pagada debe aparecer si se ha pagado, la opcion activa
+y anulada, se puede seleccionar al editar.
+
+¿Debe haber un resumen total de deudas por conductor? si
+
+¿Necesitas filtros especiales además de los estándar (búsqueda, filtro por conductor)? si\\
+
+
+
+En los filtros:
+Elimina los botones de filtrar y limpiar, tambien la seccion de monto, en su lugar pon el buscador, añade el filtro por tipo de ingreso
+quedaria asi: Buscar, fecha desde hasta, tipo
+
+En el modal de pago, completar pago pendiente, el boton de confirmar pago, no confirma el pago de ese ingreso. Que seria actualizar el ingreso, añadiendo el pago al actual monto ingresado de la tabla ingresos. asi mismo como funciona el boton de confirmar pago del modal 
+pagar ingreso pendiente de la hoja ingresos.php

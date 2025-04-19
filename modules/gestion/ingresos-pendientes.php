@@ -65,7 +65,7 @@ $conductores = $pdo->query("
 
     <!-- Filtros -->
     <div class="filters-container" style="background: #f8f9fa; padding: 3px 15px; border-radius: 8px; margin: 1px 0;">
-        <form id="filtersForm" method="get" class="modal__form" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
+        <form id="filtersForm" method="get" class="modal__form" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 50px;">
             <div class="modal__form-group">
                 <label for="search" class="modal__form-label">Buscar</label>
                 <input type="text" name="search" id="search" class="modal__form-input" value="<?= htmlspecialchars($search) ?>" 

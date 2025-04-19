@@ -67,6 +67,42 @@ body {
 .menu a:hover {
     background-color: #0056b3;
 }
+/* styles.css o tu archivo CSS principal */
+.marquee-container {
+    background-color: var(--color-primario);
+    color: white;
+    padding: 10px 0;
+    margin-bottom: 0;
+    border-radius: 0;
+    overflow: hidden;
+}
+
+.marquee {
+    display: flex;
+    animation: marquee 30s linear infinite;
+    white-space: nowrap;
+}
+
+.marquee-item {
+    margin-right: 40px;
+    display: flex;
+    align-items: center;
+}
+
+.marquee-item.alerta {
+    color: #ffcc00;
+    font-weight: bold;
+}
+
+.marquee-item.urgente {
+    color: #ff3333;
+    font-weight: bold;
+}
+
+@keyframes marquee {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+}
 
 /* Submenús */
 .submenu {
